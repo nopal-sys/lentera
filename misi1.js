@@ -386,12 +386,27 @@ function countUpScore(target, duration = 1600) {
   requestAnimationFrame(tick);
 }
 
+// Bintang: nilai < 50 = 1 bintang | 50-79 = 2 bintang | 80-100 = 3 bintang
+function hitungBintang(nilai) {
+  if (nilai < 50) return 1;
+  if (nilai < 80) return 2;
+  return 3;
+}
+
+function tampilkanBintang(nilai) {
+  const jumlah = hitungBintang(nilai);
+  document.querySelectorAll('#result-stars .result-star').forEach((el, i) => {
+    el.classList.toggle('off', i >= jumlah);
+  });
+}
+
 function showResult() {
   const hasil = hitungHasilLevel();
   resultLevelLabelEl.innerText = `Level ${currentLevel} Selesai`;
   resultCorrectEl.innerText = `${hasil.langsungBenar}/${hasil.total}`;
   document.getElementById('result-predikat').innerText = hasil.predikat;
   resultScoreEl.innerText = '0';
+  tampilkanBintang(hasil.nilai);
   resultModalEl.classList.remove('hidden');
   launchConfetti();
   setTimeout(() => countUpScore(hasil.nilai), 400);
@@ -438,7 +453,7 @@ async function submitAnswer() {
         : `Jawabanmu: "${userSentence}". Ada hewan yang tidak ada di gambar. Lihat gambar baik-baik, lalu coba lagi!`;
     } else {
       errorPattern = (q.errorPatterns && q.errorPatterns[userKey]) || 'URUTAN_TIDAK_TETAP';
-      modalErrorDescEl.innerText = `Susunanmu: "${userSentence}". Ingat rumus kalimat: Siapa + Melakukan apa + Objek. Ayo coba lagi!`;
+      modalErrorDescEl.innerText = `Susunanmu: "${userSentence}" masih salah. Ayo coba lagi!`;
     }
     errorModalEl.classList.remove('hidden');
     // Tiap popup "Belum Tepat" = +1 salah. Kotak kosong tidak dihitung; soal yang sudah selesai dikunci.
