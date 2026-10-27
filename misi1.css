@@ -1,0 +1,84 @@
+.word-card {
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.word-card:active {
+  transform: scale(0.95);
+}
+
+.cursor-hover {
+  border-color: #f97316 !important;
+  background-color: #ffedd5 !important;
+  transform: scale(1.03);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3) !important;
+}
+
+#success-modal:not(.hidden) > div {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---------- Halaman hasil akhir level ---------- */
+#result-modal:not(.hidden) .result-card {
+  animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.result-bounce {
+  animation: resultBounce 1.1s ease-in-out infinite;
+}
+
+.result-twinkle {
+  animation: resultTwinkle 1.8s ease-in-out infinite;
+}
+
+.result-star {
+  display: inline-block;
+  opacity: 0;
+  animation: starPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.result-score-ring {
+  background: conic-gradient(#f97316, #f43f5e, #a855f7, #3b82f6, #10b981, #fbbf24, #f97316);
+  animation: ringSpin 6s linear infinite;
+}
+.result-score-ring > div {
+  animation: ringSpin 6s linear infinite reverse;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -30px;
+  opacity: 0.95;
+  animation-name: confettiFall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes resultBounce {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-10px) rotate(4deg); }
+}
+
+@keyframes resultTwinkle {
+  0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.5; }
+  50% { transform: scale(1.3) rotate(20deg); opacity: 1; }
+}
+
+@keyframes starPop {
+  0% { transform: scale(0) rotate(-120deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes ringSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); }
+  100% { transform: translateY(110vh) rotate(720deg); }
+}
