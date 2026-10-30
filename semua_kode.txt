@@ -1,0 +1,5105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LENTERA - Laporan Literasi</title>
+  <!-- Tailwind CSS CDN (sama seperti halaman lain) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-xl">✨</span>
+      <h1 class="font-bold text-lg text-slate-900 tracking-tight">LENTERA</h1>
+      <span class="bg-orange-100 text-orange-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+        Laporan Literasi
+      </span>
+    </div>
+    <a id="back-link" href="laporan.html" class="hidden text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+      ← Semua anak
+    </a>
+  </header>
+
+  <!-- Isi laporan dirender oleh laporan.js -->
+  <main id="laporan-root" class="max-w-5xl mx-auto w-full p-6 flex flex-col gap-5">
+    <p class="text-sm text-slate-400">Memuat data...</p>
+  </main>
+
+  <script src="laporan.js"></script>
+</body>
+</html>
+// =============================================================
+//  LAPORAN LITERASI LENTERA
+//  Tanpa ?anak=...        -> daftar semua anak
+//  Dengan ?anak=<anak_id> -> laporan 1 anak (anak_id = ssoToken yang dipakai saat main)
+//  Contoh: laporan.html?anak=DEMO_TOKEN_123
+// =============================================================
+const params = new URLSearchParams(window.location.search);
+const anakId = params.get('anak');
+const rootEl = document.getElementById('laporan-root');
+
+const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+const WARNA_PREDIKAT = {
+  'Sempurna': 'bg-amber-100 text-amber-700 border-amber-300',
+  'Sangat Baik': 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  'Baik': 'bg-blue-100 text-blue-700 border-blue-300',
+  'Cukup': 'bg-yellow-100 text-yellow-700 border-yellow-300',
+  'Perlu Pendampingan': 'bg-rose-100 text-rose-700 border-rose-300'
+};
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// "2026-10-27" -> "27 Okt 2026"
+function tgl(iso) {
+  const [y, m, d] = String(iso).split('-');
+  return `${parseInt(d, 10)} ${NAMA_BULAN[parseInt(m, 10) - 1] || ''} ${y}`;
+}
+
+// 87.5 -> "87,5"   |   90 -> "90"
+function angka(n) {
+  return n === null || n === undefined ? '-' : String(n).replace('.', ',');
+}
+
+function badgePredikat(p) {
+  if (!p) return '<span class="text-slate-400">-</span>';
+  const warna = WARNA_PREDIKAT[p] || 'bg-slate-100 text-slate-600 border-slate-300';
+  return `<span class="inline-block text-xs font-bold px-2.5 py-1 rounded-full border ${warna}">${esc(p)}</span>`;
+}
+
+function tampilkanPesan(teks) {
+  rootEl.innerHTML = `<p class="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl p-5">${esc(teks)}</p>`;
+}
+
+// ---------------------------------------------------------------
+//  DAFTAR SEMUA ANAK
+// ---------------------------------------------------------------
+async function muatDaftar() {
+  const res = await fetch('/api/laporan');
+  const data = await res.json();
+  if (!data.anak.length) { tampilkanPesan('Belum ada data. Data muncul setelah anak menyelesaikan satu level.'); return; }
+
+  const baris = data.anak.map((a) => `
+    <tr class="border-t border-slate-100 hover:bg-orange-50/50">
+      <td class="px-4 py-3 font-semibold"><a class="text-blue-600 hover:underline" href="laporan.html?anak=${encodeURIComponent(a.anak_id)}">${esc(a.anak_id)}</a></td>
+      <td class="px-4 py-3 text-center">${angka(a.pretest)}</td>
+      <td class="px-4 py-3 text-center font-bold">${angka(a.nilai_literasi)}</td>
+      <td class="px-4 py-3 text-center">${badgePredikat(a.predikat)}</td>
+      <td class="px-4 py-3 text-center">${a.perkembangan === null ? '-' : (a.perkembangan > 0 ? '+' : '') + angka(a.perkembangan)}</td>
+      <td class="px-4 py-3 text-center">${a.jumlah_level}</td>
+    </tr>`).join('');
+
+  rootEl.innerHTML = `
+    <h2 class="text-2xl font-extrabold text-slate-900">Daftar Anak</h2>
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="px-4 py-3 text-left">Anak</th>
+            <th class="px-4 py-3">Pre-test</th>
+            <th class="px-4 py-3">Nilai Literasi</th>
+            <th class="px-4 py-3">Predikat</th>
+            <th class="px-4 py-3">Perkembangan</th>
+            <th class="px-4 py-3">Level Selesai</th>
+          </tr>
+        </thead>
+        <tbody>${baris}</tbody>
+      </table>
+    </div>`;
+}
+
+// ---------------------------------------------------------------
+//  GRAFIK GARIS SEDERHANA (SVG): x = tanggal, y = nilai 0-100
+// ---------------------------------------------------------------
+function grafikTren(tren) {
+  if (!tren.length) return '<p class="text-sm text-slate-400">Belum ada data.</p>';
+
+  const W = 640, H = 260, L = 44, R = 24, T = 20, B = 46;
+  const innerW = W - L - R, innerH = H - T - B;
+  const x = (i) => (tren.length === 1 ? L + innerW / 2 : L + (innerW * i) / (tren.length - 1));
+  const y = (v) => T + innerH - (innerH * v) / 100;
+
+  const grid = [0, 25, 50, 75, 100].map((v) => `
+    <line x1="${L}" y1="${y(v)}" x2="${W - R}" y2="${y(v)}" stroke="#e2e8f0" stroke-width="1" />
+    <text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="#94a3b8">${v}</text>`).join('');
+
+  const garis = tren.length > 1
+    ? `<polyline fill="none" stroke="#f97316" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"
+         points="${tren.map((t, i) => `${x(i)},${y(t.nilai)}`).join(' ')}" />`
+    : '';
+
+  const titik = tren.map((t, i) => {
+    const [, m, d] = t.tanggal.split('-');
+    return `
+      <circle cx="${x(i)}" cy="${y(t.nilai)}" r="6" fill="#ffffff" stroke="#f97316" stroke-width="3" />
+      <text x="${x(i)}" y="${y(t.nilai) - 12}" text-anchor="middle" font-size="12" font-weight="700" fill="#c2410c">${angka(t.nilai)}</text>
+      <text x="${x(i)}" y="${H - B + 20}" text-anchor="middle" font-size="11" fill="#64748b">${parseInt(d, 10)} ${NAMA_BULAN[parseInt(m, 10) - 1]}</text>`;
+  }).join('');
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="Grafik tren nilai per tanggal">
+      ${grid}${garis}${titik}
+    </svg>
+    ${tren.length === 1 ? '<p class="text-xs text-slate-400 mt-1">Baru ada 1 tanggal. Garis muncul setelah ada nilai di tanggal lain.</p>' : ''}`;
+}
+
+// ---------------------------------------------------------------
+//  LAPORAN 1 ANAK
+// ---------------------------------------------------------------
+function kartu(judul, isi, catatan = '') {
+  return `
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-1">
+      <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">${judul}</span>
+      <div class="flex items-center gap-2 flex-wrap">${isi}</div>
+      <span class="text-xs text-slate-500">${catatan}</span>
+    </div>`;
+}
+
+function tampilkanLaporan(d) {
+  const belumAda = d.nilai_literasi === null;
+
+  let perkembanganIsi = '<span class="text-3xl font-extrabold text-slate-300">-</span>';
+  let perkembanganCatatan = d.pretest === null ? 'Belum ada data pre-test.' : 'Belum ada level yang selesai.';
+  if (d.perkembangan !== null) {
+    const naik = d.perkembangan > 0, turun = d.perkembangan < 0;
+    const warna = naik ? 'text-emerald-600' : (turun ? 'text-rose-600' : 'text-slate-600');
+    perkembanganIsi = `<span class="text-3xl font-extrabold ${warna}">${naik ? '+' : ''}${angka(d.perkembangan)}</span>`;
+    perkembanganCatatan = `Pre-test ${angka(d.pretest)} → sekarang ${angka(d.nilai_literasi)}`;
+  }
+
+  const barisLevel = d.level_selesai.map((l) => `
+    <tr class="border-t border-slate-100">
+      <td class="px-4 py-3 font-semibold">Level ${l.level}</td>
+      <td class="px-4 py-3 text-center font-bold">${angka(l.nilai)}</td>
+      <td class="px-4 py-3 text-center">${badgePredikat(l.predikat)}</td>
+      <td class="px-4 py-3 text-center">${l.langsung_benar}/${l.total_soal}</td>
+      <td class="px-4 py-3 text-center">${tgl(l.tanggal)}</td>
+      <td class="px-4 py-3 text-center text-slate-500">${l.main_ulang ? `${l.main_ulang}×` : '-'}</td>
+    </tr>`).join('');
+
+  rootEl.innerHTML = `
+    <div>
+      <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Laporan perkembangan literasi</span>
+      <h2 class="text-2xl font-extrabold text-slate-900 break-all">${esc(d.anak_id)}</h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      ${kartu('Nilai Literasi',
+        `<span class="text-4xl font-black text-orange-600">${angka(d.nilai_literasi)}</span>${badgePredikat(d.predikat)}`,
+        belumAda ? 'Belum ada level yang selesai.' : `Rata-rata ${d.level_selesai.length} level`)}
+      ${kartu('Perkembangan', perkembanganIsi, perkembanganCatatan)}
+      ${kartu('Soal Langsung Benar',
+        `<span class="text-4xl font-black text-emerald-600">${d.persen_langsung_benar === null ? '-' : angka(d.persen_langsung_benar) + '%'}</span>`,
+        d.total_soal ? `${d.soal_langsung_benar} dari ${d.total_soal} soal` : 'Belum ada data.')}
+      ${kartu('Level Selesai',
+        `<span class="text-4xl font-black text-blue-600">${d.level_selesai.length}</span>`,
+        'Dihitung dari penyelesaian pertama tiap level')}
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+      <div class="px-4 pt-4 text-sm font-bold text-slate-700">Level yang sudah diselesaikan</div>
+      ${belumAda ? '<p class="px-4 py-4 text-sm text-slate-400">Belum ada level yang selesai.</p>' : `
+      <table class="w-full text-sm mt-2">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="px-4 py-3 text-left">Level</th>
+            <th class="px-4 py-3">Nilai</th>
+            <th class="px-4 py-3">Predikat</th>
+            <th class="px-4 py-3">Langsung Benar</th>
+            <th class="px-4 py-3">Tanggal</th>
+            <th class="px-4 py-3">Main Ulang</th>
+          </tr>
+        </thead>
+        <tbody>${barisLevel}</tbody>
+      </table>`}
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+      <div class="text-sm font-bold text-slate-700 mb-2">Tren nilai per tanggal</div>
+      ${grafikTren(d.tren)}
+    </div>
+
+    <p class="text-xs text-slate-400">
+      Nilai laporan memakai penyelesaian pertama tiap level. "Main Ulang" tetap tersimpan tapi tidak mengubah nilai.
+      Waktu pengerjaan disimpan sebagai data pendukung dan tidak ikut dihitung.
+    </p>`;
+}
+
+async function muatAnak(id) {
+  document.getElementById('back-link').classList.remove('hidden');
+  const res = await fetch(`/api/laporan/${encodeURIComponent(id)}`);
+  if (res.status === 404) { tampilkanPesan(`Data untuk "${id}" tidak ditemukan.`); return; }
+  tampilkanLaporan(await res.json());
+}
+
+(anakId ? muatAnak(anakId) : muatDaftar()).catch((err) => {
+  console.error(err);
+  tampilkanPesan('Gagal memuat laporan. Pastikan server Flask (app.py) sedang jalan.');
+});
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LENTERA - Pilih Level</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Custom CSS (dipakai bareng halaman soal, ada style .cursor-hover) -->
+  <link rel="stylesheet" href="misi1.css" />
+  
+  <!-- MediaPipe Hands & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 h-screen overflow-hidden flex flex-col select-none">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <span class="text-xl">✨</span>
+      <h1 class="font-bold text-lg text-slate-900 tracking-tight">LENTERA</h1>
+      <span class="bg-orange-100 text-orange-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+        Literasi · Menyusun Kalimat
+      </span>
+    </div>
+  </header>
+
+  <!-- Pilih Level -->
+  <main class="max-w-6xl mx-auto w-full p-6 pb-44 flex-1 flex flex-col items-center justify-center gap-6">
+    <div class="text-center flex flex-col gap-1">
+      <h2 class="text-3xl font-extrabold text-slate-900">Pilih Level</h2>
+      <p class="text-sm text-slate-500">Arahkan telunjuk ke level yang ingin kamu mainkan, lalu tahan sebentar.</p>
+    </div>
+
+    <!-- Kartu level dirender via level.js -->
+    <div id="level-grid" class="grid grid-cols-5 gap-4 w-full"></div>
+  </main>
+
+  <!-- Video Webcam & Virtual Cursor -->
+  <div class="fixed bottom-3 right-3 w-36 bg-slate-900 border-2 border-slate-700 rounded-xl overflow-hidden shadow-2xl p-1.5 flex flex-col items-center gap-1 z-50">
+    <video id="webcam" class="w-full h-20 bg-black rounded-lg transform -scale-x-100 object-cover" autoplay playsinline muted></video>
+    <div class="flex items-center gap-1 text-[9px] text-emerald-400 font-medium w-full justify-center">
+      <span id="camera-dot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+      <span id="gesture-status">Mencari Tangan...</span>
+    </div>
+  </div>
+
+  <div id="virtual-cursor" class="fixed w-6 h-6 rounded-full bg-orange-500/80 border-2 border-white shadow-xl pointer-events-none z-[9999] hidden transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-[9px] text-white font-bold">
+    👆
+  </div>
+
+  <!-- Data soal dipakai untuk menghitung jumlah soal tiap level -->
+  <script src="soal-misi1.js"></script>
+  <script src="level.js"></script>
+</body>
+</html>
+
+const urlParams = new URLSearchParams(window.location.search);
+const ssoToken = urlParams.get('ssoToken') || '';
+
+// Token demo hanya untuk laporan lokal Flask lama.
+const legacySsoToken = ssoToken || 'DEMO_TOKEN_123';
+
+function decodeJwtPayload(token) {
+  try {
+    const part = String(token || '').split('.')[1];
+    if (!part) return null;
+
+    const normalized = part.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch (error) {
+    console.warn('Payload token Dashboard tidak dapat dibaca:', error);
+    return null;
+  }
+}
+
+const dashboardSession = ssoToken ? decodeJwtPayload(ssoToken) : null;
+
+function normalizeCompetency(code) {
+  const value = String(code || '').trim();
+
+  const aliases = {
+    menyusun_kalimat: 'LT-KALIMAT',
+    MENYUSUN_KALIMAT: 'LT-KALIMAT',
+    kosakata: 'LT-KOSAKATA',
+    KOSAKATA: 'LT-KOSAKATA',
+    membaca_lancar: 'LT-LANCAR',
+    MEMBACA_LANCAR: 'LT-LANCAR',
+    pemahaman_bacaan: 'LT-PAHAM',
+    PEMAHAMAN_BACAAN: 'LT-PAHAM'
+  };
+
+  return aliases[value] || value;
+}
+
+const dashboardCompetency = normalizeCompetency(
+  dashboardSession?.kompetensi || urlParams.get('kompetensi') || ''
+);
+
+const dashboardApiUrl = dashboardSession?.api || '';
+const dashboardHomeUrl = dashboardSession?.home || '';
+
+const hasDashboardSession = Boolean(
+  ssoToken &&
+  dashboardSession &&
+  dashboardApiUrl &&
+  dashboardSession.misi
+);
+
+// ============================================================
+// BANK SOAL
+// soal-misi1.js harus dimuat sebelum misi1.js.
+// ============================================================
+
+if (
+  typeof questions === 'undefined' ||
+  !Array.isArray(questions) ||
+  questions.length === 0
+) {
+  alert(
+    'Data soal tidak ditemukan. Pastikan soal-misi1.js dimuat sebelum misi1.js.'
+  );
+
+  throw new Error('questions tidak ditemukan atau kosong.');
+}
+
+function validateQuestions() {
+  const ids = new Set();
+
+  questions.forEach((q, n) => {
+    const label = `Soal ke-${n + 1} (${q.id || 'tanpa id'})`;
+
+    if (!q.id) {
+      console.warn(`[soal-misi1] ${label}: ID kosong`);
+    } else if (ids.has(q.id)) {
+      console.warn(`[soal-misi1] ${label}: ID duplikat`);
+    }
+
+    ids.add(q.id);
+
+    if (!q.instruksi) {
+      console.warn(`[soal-misi1] ${label}: instruksi kosong`);
+    }
+
+    if (!Array.isArray(q.correctOrder) || !q.correctOrder.length) {
+      console.warn(`[soal-misi1] ${label}: correctOrder kosong`);
+      return;
+    }
+
+    if (!Array.isArray(q.words)) {
+      console.warn(`[soal-misi1] ${label}: words tidak valid`);
+      return;
+    }
+
+    const pool = [...q.words];
+
+    q.correctOrder.forEach(word => {
+      const index = pool.indexOf(word);
+
+      if (index === -1) {
+        console.warn(
+          `[soal-misi1] ${label}: kata "${word}" tidak ditemukan di words`
+        );
+      } else {
+        pool.splice(index, 1);
+      }
+    });
+  });
+}
+
+validateQuestions();
+
+// ============================================================
+// KOMPETENSI DAN LEVEL
+// ============================================================
+
+const LEVEL_PAGE = 'level.html';
+
+const levelFromToken = Number(dashboardSession?.level || 0);
+const levelFromUrl = Number(urlParams.get('level') || 0);
+
+const currentLevel = hasDashboardSession
+  ? levelFromToken
+  : (
+      Number.isInteger(levelFromUrl) &&
+      levelFromUrl >= 1 &&
+      levelFromUrl <= 5
+        ? levelFromUrl
+        : 1
+    );
+
+const questionsInLevel = questions.filter(
+  q => Number(q.level) === currentLevel
+);
+
+const levelQuestions = hasDashboardSession
+  ? questionsInLevel.filter(q =>
+      normalizeCompetency(
+        q.kompetensiDashboard || q.kompetensi || ''
+      ) === dashboardCompetency
+    )
+  : questionsInLevel;
+
+if (
+  hasDashboardSession &&
+  (
+    !dashboardCompetency ||
+    !Number.isInteger(currentLevel) ||
+    currentLevel < 1 ||
+    currentLevel > 5
+  )
+) {
+  alert(
+    'Sesi Dashboard tidak valid. Silakan buka kembali misi dari Dashboard.'
+  );
+
+  if (dashboardHomeUrl) {
+    window.location.replace(dashboardHomeUrl);
+  }
+
+  throw new Error('Token Dashboard tidak memuat kompetensi atau level valid.');
+}
+
+if (levelQuestions.length === 0) {
+  const pesan = hasDashboardSession
+    ? `Belum ada soal Game 1 untuk kompetensi ${dashboardCompetency} pada Level ${currentLevel}.`
+    : `Level ${currentLevel} belum memiliki soal.`;
+
+  alert(pesan);
+
+  if (hasDashboardSession && dashboardHomeUrl) {
+    window.location.replace(dashboardHomeUrl);
+  } else {
+    window.location.href = LEVEL_PAGE;
+  }
+
+  throw new Error(
+    `Tidak ada soal untuk kompetensi/level ${dashboardCompetency}/${currentLevel}`
+  );
+}
+
+function levelPageUrl() {
+  if (hasDashboardSession && dashboardHomeUrl) {
+    return dashboardHomeUrl;
+  }
+
+  const params = new URLSearchParams();
+
+  if (ssoToken) params.set('ssoToken', ssoToken);
+  if (dashboardCompetency) params.set('kompetensi', dashboardCompetency);
+
+  const query = params.toString();
+
+  return query
+    ? `${LEVEL_PAGE}?${query}`
+    : LEVEL_PAGE;
+}
+
+// ============================================================
+// STATE PERMAINAN
+// ============================================================
+
+let currentQuestionIdx = 0;
+let selectedWords = [];
+let availableWords = [];
+let grabbedWord = null;
+let startTime = Date.now();
+
+// ============================================================
+// PENILAIAN LOKAL — DIPERTAHANKAN
+// ============================================================
+
+const SKOR_PER_PERCOBAAN = [100, 75, 50];
+const SKOR_MINIMUM = 25;
+
+function hitungSkorSoal(jumlahSalah) {
+  return jumlahSalah < SKOR_PER_PERCOBAAN.length
+    ? SKOR_PER_PERCOBAAN[jumlahSalah]
+    : SKOR_MINIMUM;
+}
+
+function tentukanPredikat(nilai) {
+  if (nilai >= 100) return 'Sempurna';
+  if (nilai >= 90) return 'Sangat Baik';
+  if (nilai >= 75) return 'Baik';
+  if (nilai >= 60) return 'Cukup';
+  return 'Perlu Pendampingan';
+}
+
+function buatSesiId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+let sesiId = buatSesiId();
+let soalState = {};
+
+function getSoalState(q) {
+  if (!soalState[q.id]) {
+    soalState[q.id] = {
+      mulai: Date.now(),
+      jumlahSalah: 0,
+      selesai: false,
+      waktuDetik: 0
+    };
+  }
+
+  return soalState[q.id];
+}
+
+function hitungHasilLevel() {
+  const daftar = levelQuestions.map(q => {
+    const state = getSoalState(q);
+
+    return {
+      soal_id: q.id,
+      jumlah_salah: state.jumlahSalah,
+      skor: hitungSkorSoal(state.jumlahSalah),
+      waktu_detik: state.waktuDetik
+    };
+  });
+
+  const total = daftar.length;
+
+  const nilai = total
+    ? Math.round(
+        (
+          daftar.reduce((totalSkor, item) => totalSkor + item.skor, 0) /
+          total
+        ) * 10
+      ) / 10
+    : 0;
+
+  const langsungBenar = daftar.filter(
+    item => item.jumlah_salah === 0
+  ).length;
+
+  return {
+    daftar,
+    total,
+    nilai,
+    langsungBenar,
+    predikat: tentukanPredikat(nilai)
+  };
+}
+
+// ============================================================
+// LAPORAN LOKAL FLASK — DIPERTAHANKAN
+// ============================================================
+
+async function kirimJson(url, body) {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      console.warn(`Gagal kirim ke ${url}: HTTP ${response.status}`);
+    }
+
+    return response.ok;
+  } catch (error) {
+    console.warn(`Gagal kirim ke ${url}:`, error);
+    return false;
+  }
+}
+
+function kirimHasilSoal(q, state) {
+  return kirimJson('/api/misi1/soal', {
+    ssoToken: legacySsoToken,
+    sesi_id: sesiId,
+    level: q.level,
+    soal_id: q.id,
+    jumlah_salah: state.jumlahSalah,
+    waktu_detik: state.waktuDetik
+  });
+}
+
+function kirimHasilLevel(hasil) {
+  return kirimJson('/api/misi1/level', {
+    ssoToken: legacySsoToken,
+    sesi_id: sesiId,
+    level: currentLevel,
+    total_soal: hasil.total,
+    soal: hasil.daftar.map(item => ({
+      soal_id: item.soal_id,
+      jumlah_salah: item.jumlah_salah,
+      waktu_detik: item.waktu_detik
+    }))
+  });
+}
+
+// ============================================================
+// SINKRONISASI KE DASHBOARD DJANGO
+// ============================================================
+
+const dashboardEventPromises = [];
+
+function buatEventId() {
+  if (
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === 'function'
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return (
+    `${Date.now().toString(36)}-` +
+    `${Math.random().toString(36).slice(2, 12)}-` +
+    `${Math.random().toString(36).slice(2, 10)}`
+  );
+}
+
+function kirimEventDashboard(event) {
+  if (!hasDashboardSession || !dashboardApiUrl) {
+    return Promise.resolve({
+      ok: true,
+      dilewati: true
+    });
+  }
+
+  const request = fetch(dashboardApiUrl, {
+    method: 'POST',
+    mode: 'cors',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${ssoToken}`
+    },
+    body: JSON.stringify({
+      ...event,
+      ssoToken
+    })
+  }).then(async response => {
+    let body = {};
+
+    try {
+      body = await response.json();
+    } catch (_) {
+      body = {};
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        body.error || `HTTP ${response.status} dari API Dashboard`
+      );
+    }
+
+    if (body.error) {
+      throw new Error(body.error);
+    }
+
+    return {
+      ok: true,
+      data: body
+    };
+  }).catch(error => {
+    console.error(
+      'Gagal menyinkronkan jawaban ke Dashboard:',
+      error
+    );
+
+    return {
+      ok: false,
+      error: error.message || String(error)
+    };
+  });
+
+  dashboardEventPromises.push(request);
+
+  return request;
+}
+
+async function selesaikanMisiDashboard() {
+  if (!hasDashboardSession || !dashboardApiUrl) {
+    return {
+      ok: true,
+      dilewati: true
+    };
+  }
+
+  const hasilKirim = await Promise.all(dashboardEventPromises);
+
+  const gagal = hasilKirim.find(
+    hasil => !hasil.ok
+  );
+
+  if (gagal) {
+    console.warn(
+      'Misi tidak dikonfirmasi selesai karena ada jawaban gagal disinkronkan:',
+      gagal.error
+    );
+
+    return {
+      ok: false,
+      error: gagal.error
+    };
+  }
+
+  try {
+    const response = await fetch(dashboardApiUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ssoToken}`
+      },
+      body: JSON.stringify({
+        ssoToken,
+        events: [],
+        selesai: true
+      })
+    });
+
+    let body = {};
+
+    try {
+      body = await response.json();
+    } catch (_) {
+      body = {};
+    }
+
+    if (!response.ok || body.error || body.selesai !== true) {
+      const message =
+        body.error ||
+        `Misi belum dinyatakan selesai (HTTP ${response.status}).`;
+
+      console.warn(
+        'Dashboard belum menerima penyelesaian misi:',
+        message
+      );
+
+      return {
+        ok: false,
+        error: message,
+        data: body
+      };
+    }
+
+    console.info(
+      'Misi Game 1 berhasil disinkronkan dan ditandai selesai di Dashboard.'
+    );
+
+    return {
+      ok: true,
+      data: body
+    };
+  } catch (error) {
+    console.error(
+      'Gagal mengirim status selesai ke Dashboard:',
+      error
+    );
+
+    return {
+      ok: false,
+      error: error.message || String(error)
+    };
+  }
+}
+
+// ============================================================
+// ELEMEN HALAMAN
+// ============================================================
+
+const soalNumEl = document.getElementById('soal-num');
+const soalTotalEl = document.getElementById('soal-total');
+const soalGambarEl = document.getElementById('soal-gambar');
+const soalInstruksiEl = document.getElementById('soal-instruksi');
+const levelBadgeEl = document.getElementById('level-badge');
+const progressBarEl = document.getElementById('progress-bar');
+const dropZoneEl = document.getElementById('drop-zone');
+const wordBankEl = document.getElementById('word-bank');
+const gestureStatusEl = document.getElementById('gesture-status');
+const cameraDotEl = document.getElementById('camera-dot');
+const virtualCursorEl = document.getElementById('virtual-cursor');
+const floatingWordEl = document.getElementById('floating-word');
+const successModalEl = document.getElementById('success-modal');
+const errorModalEl = document.getElementById('error-modal');
+const modalErrorDescEl = document.getElementById('modal-error-desc');
+const resultModalEl = document.getElementById('result-modal');
+const resultScoreEl = document.getElementById('result-score');
+const resultCorrectEl = document.getElementById('result-correct');
+const resultLevelLabelEl = document.getElementById('result-level-label');
+const confettiLayerEl = document.getElementById('confetti-layer');
+
+const IMAGE_PATH_REGEX = /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i;
+
+// ============================================================
+// MENAMPILKAN GAMBAR SOAL
+// ============================================================
+
+function renderGambar(q) {
+  const gambar = (q.gambar || '').trim();
+
+  soalGambarEl.innerHTML = '';
+  disableImageZoom();
+
+  if (!gambar) {
+    soalGambarEl.innerText = '🖼️';
+    return;
+  }
+
+  if (IMAGE_PATH_REGEX.test(gambar)) {
+    const img = document.createElement('img');
+
+    img.src = gambar;
+    img.alt = q.instruksi.replace(/"/g, '');
+    img.className = 'w-full h-full object-contain';
+
+    img.onerror = () => {
+      console.warn(
+        `Gambar tidak ditemukan: ${gambar} (soal ${q.id})`
+      );
+
+      soalGambarEl.innerHTML = '';
+      soalGambarEl.innerText = '🖼️';
+      disableImageZoom();
+    };
+
+    soalGambarEl.appendChild(img);
+  } else {
+    soalGambarEl.innerText = gambar;
+  }
+
+  enableImageZoom(q, gambar);
+}
+
+// ============================================================
+// ZOOM GAMBAR
+// ============================================================
+
+const imageModalEl = document.getElementById('image-modal');
+const imageModalContentEl = document.getElementById('image-modal-content');
+const imageModalCaptionEl = document.getElementById('image-modal-caption');
+
+function isImageZoomOpen() {
+  return !imageModalEl.classList.contains('hidden');
+}
+
+function disableImageZoom() {
+  soalGambarEl.classList.remove(
+    'interactive-elem',
+    'cursor-pointer'
+  );
+
+  soalGambarEl.onclick = null;
+  soalGambarEl.removeAttribute('title');
+}
+
+function enableImageZoom(q, gambar) {
+  soalGambarEl.classList.add(
+    'interactive-elem',
+    'cursor-pointer'
+  );
+
+  soalGambarEl.title = 'Klik untuk memperbesar gambar';
+  soalGambarEl.onclick = () => openImageZoom(q, gambar);
+
+  const hint = document.createElement('span');
+
+  hint.className =
+    'absolute bottom-1 right-1 bg-white/90 border border-slate-200 ' +
+    'rounded-full w-6 h-6 flex items-center justify-center text-xs ' +
+    'shadow pointer-events-none';
+
+  hint.innerText = '🔍';
+
+  soalGambarEl.appendChild(hint);
+}
+
+function openImageZoom(q, gambar) {
+  imageModalContentEl.innerHTML = '';
+
+  if (IMAGE_PATH_REGEX.test(gambar)) {
+    const img = document.createElement('img');
+
+    img.src = gambar;
+    img.alt = q.instruksi.replace(/"/g, '');
+    img.className = 'w-full h-full object-contain';
+
+    imageModalContentEl.appendChild(img);
+  } else {
+    const emoji = document.createElement('div');
+
+    emoji.className = 'leading-none text-center';
+    emoji.style.fontSize = 'min(40vw, 30vh)';
+    emoji.innerText = gambar;
+
+    imageModalContentEl.appendChild(emoji);
+  }
+
+  imageModalCaptionEl.innerText = q.instruksi;
+  imageModalEl.classList.remove('hidden');
+
+  resetDwell();
+  dwellLock = null;
+}
+
+function closeImageZoom() {
+  if (!isImageZoomOpen()) return;
+
+  imageModalEl.classList.add('hidden');
+  imageModalContentEl.innerHTML = '';
+
+  resetDwell();
+}
+
+document.getElementById('image-modal-close').onclick = closeImageZoom;
+
+imageModalEl.addEventListener('click', event => {
+  if (event.target === imageModalEl) {
+    closeImageZoom();
+  }
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeImageZoom();
+  }
+});
+
+// ============================================================
+// RENDER SOAL
+// ============================================================
+
+function renderQuestion() {
+  const q = levelQuestions[currentQuestionIdx];
+
+  soalNumEl.innerText = currentQuestionIdx + 1;
+  soalTotalEl.innerText = levelQuestions.length;
+
+  closeImageZoom();
+  renderGambar(q);
+
+  soalInstruksiEl.innerText = q.instruksi;
+  levelBadgeEl.innerText = `Level ${q.level}`;
+
+  progressBarEl.style.width =
+    `${((currentQuestionIdx + 1) / levelQuestions.length) * 100}%`;
+
+  selectedWords = [];
+  availableWords = [...q.words];
+  grabbedWord = null;
+
+  renderWordBank();
+  renderDropZone();
+
+  startTime = Date.now();
+}
+
+function renderWordBank() {
+  wordBankEl.innerHTML = '';
+
+  availableWords.forEach(word => {
+    const btn = document.createElement('div');
+
+    btn.className =
+      'word-card interactive-word bg-white border-2 border-slate-200 ' +
+      'hover:border-orange-400 font-semibold text-slate-700 px-4 py-2 ' +
+      'rounded-xl shadow-sm text-xs cursor-pointer';
+
+    btn.dataset.word = word;
+    btn.innerText = word;
+
+    btn.onclick = () => {
+      if (grabbedWord) return;
+
+      const index = availableWords.indexOf(word);
+      if (index === -1) return;
+
+      availableWords.splice(index, 1);
+      selectedWords.push(word);
+
+      renderWordBank();
+      renderDropZone();
+    };
+
+    wordBankEl.appendChild(btn);
+  });
+}
+
+function renderDropZone() {
+  dropZoneEl.innerHTML = '';
+
+  if (selectedWords.length === 0) {
+    dropZoneEl.innerHTML =
+      '<span class="text-xs text-slate-400 italic">' +
+      'Cubit kata di bawah, seret, lalu lepaskan di sini...' +
+      '</span>';
+
+    return;
+  }
+
+  selectedWords.forEach((word, index) => {
+    const chip = document.createElement('div');
+
+    chip.className =
+      'word-card interactive-cancel bg-orange-500 text-white ' +
+      'font-semibold px-3 py-1.5 rounded-xl flex items-center gap-2 ' +
+      'shadow-sm text-xs cursor-pointer';
+
+    chip.innerHTML =
+      `<span>${word}</span> ` +
+      '<span class="text-orange-200 font-bold text-xs">✕</span>';
+
+    chip.onclick = () => {
+      selectedWords.splice(index, 1);
+      availableWords.push(word);
+
+      renderWordBank();
+      renderDropZone();
+    };
+
+    dropZoneEl.appendChild(chip);
+  });
+}
+
+function resetAnswer() {
+  renderQuestion();
+}
+
+function playAudioPrompt() {
+  const q = levelQuestions[currentQuestionIdx];
+
+  const utterance = new SpeechSynthesisUtterance(
+    q.instruksi.replace(/"/g, '')
+  );
+
+  utterance.lang = 'id-ID';
+  window.speechSynthesis.speak(utterance);
+}
+
+document.getElementById('audio-btn').onclick = playAudioPrompt;
+document.getElementById('reset-btn').onclick = resetAnswer;
+document.getElementById('submit-btn').onclick = submitAnswer;
+
+document.getElementById('back-btn').onclick = () => {
+  successModalEl.classList.add('hidden');
+  errorModalEl.classList.add('hidden');
+
+  if (currentQuestionIdx > 0) {
+    currentQuestionIdx--;
+    renderQuestion();
+  } else {
+    window.location.href = levelPageUrl();
+  }
+};
+
+document.getElementById('modal-close-btn').onclick = () => {
+  errorModalEl.classList.add('hidden');
+};
+
+document.getElementById('success-next-btn').onclick = () => {
+  successModalEl.classList.add('hidden');
+
+  if (currentQuestionIdx + 1 < levelQuestions.length) {
+    currentQuestionIdx++;
+    renderQuestion();
+  } else {
+    showResult();
+  }
+};
+
+// ============================================================
+// HASIL, NILAI, DAN ANIMASI
+// ============================================================
+
+function launchConfetti() {
+  confettiLayerEl.innerHTML = '';
+
+  const colors = [
+    '#f97316',
+    '#fbbf24',
+    '#f43f5e',
+    '#3b82f6',
+    '#10b981',
+    '#a855f7',
+    '#ffffff'
+  ];
+
+  const emojis = ['⭐', '🎉', '✨', '🎊'];
+
+  for (let i = 0; i < 70; i++) {
+    const piece = document.createElement('span');
+
+    piece.className = 'confetti-piece';
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.animationDuration = `${2.5 + Math.random() * 3}s`;
+    piece.style.animationDelay = `${Math.random() * 3}s`;
+
+    if (i % 7 === 0) {
+      piece.innerText =
+        emojis[Math.floor(Math.random() * emojis.length)];
+
+      piece.style.fontSize = `${18 + Math.random() * 14}px`;
+    } else {
+      piece.style.width = `${6 + Math.random() * 8}px`;
+      piece.style.height = `${10 + Math.random() * 10}px`;
+      piece.style.background =
+        colors[Math.floor(Math.random() * colors.length)];
+
+      piece.style.borderRadius =
+        Math.random() > 0.5 ? '2px' : '50%';
+    }
+
+    confettiLayerEl.appendChild(piece);
+  }
+}
+
+function countUpScore(target, duration = 1600) {
+  const start = performance.now();
+
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    resultScoreEl.innerText = Math.round(target * eased);
+
+    if (t < 1) {
+      requestAnimationFrame(tick);
+    }
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function hitungBintang(nilai) {
+  if (nilai < 50) return 1;
+  if (nilai < 80) return 2;
+
+  return 3;
+}
+
+function tampilkanBintang(nilai) {
+  const jumlah = hitungBintang(nilai);
+
+  document.querySelectorAll('#result-stars .result-star')
+    .forEach((el, index) => {
+      el.classList.toggle('off', index >= jumlah);
+    });
+}
+
+function showResult() {
+  const hasil = hitungHasilLevel();
+
+  resultLevelLabelEl.innerText = `Level ${currentLevel} Selesai`;
+  resultCorrectEl.innerText =
+    `${hasil.langsungBenar}/${hasil.total}`;
+
+  document.getElementById('result-predikat').innerText =
+    hasil.predikat;
+
+  resultScoreEl.innerText = '0';
+
+  tampilkanBintang(hasil.nilai);
+
+  resultModalEl.classList.remove('hidden');
+
+  launchConfetti();
+
+  setTimeout(() => countUpScore(hasil.nilai), 400);
+
+  // Simpan laporan hasil ke backend Flask yang lama.
+  kirimHasilLevel(hasil);
+
+  // Dashboard tetap menerima event jawaban secara terpisah.
+  if (hasDashboardSession) {
+    selesaikanMisiDashboard().then(hasilSync => {
+      if (!hasilSync.ok) {
+        console.warn(
+          'Nilai lokal tersedia, tetapi status Dashboard belum selesai:',
+          hasilSync.error
+        );
+      }
+    });
+  }
+}
+
+document.getElementById('result-level-btn').onclick = () => {
+  window.location.href = levelPageUrl();
+};
+
+document.getElementById('result-retry-btn').onclick = () => {
+  if (hasDashboardSession) {
+    window.location.href = levelPageUrl();
+    return;
+  }
+
+  resultModalEl.classList.add('hidden');
+  confettiLayerEl.innerHTML = '';
+
+  currentQuestionIdx = 0;
+  sesiId = buatSesiId();
+  soalState = {};
+
+  renderQuestion();
+};
+
+// ============================================================
+// PEMERIKSAAN JAWABAN DAN PENGIRIMAN EVENT
+// ============================================================
+
+async function submitAnswer() {
+  const q = levelQuestions[currentQuestionIdx];
+
+  if (
+    !errorModalEl.classList.contains('hidden') ||
+    !successModalEl.classList.contains('hidden')
+  ) {
+    return;
+  }
+
+  const state = getSoalState(q);
+  const responseTimeMs = Date.now() - startTime;
+  const userSentence = selectedWords.join(' ');
+
+  const semuaJawabanBenar = [
+    q.correctOrder,
+    ...(Array.isArray(q.jawabanLain) ? q.jawabanLain : [])
+  ];
+
+  const kunci = arr => [...arr].sort().join('|');
+
+  const isCorrect = q.urutanBebas
+    ? semuaJawabanBenar.some(
+        susunan => kunci(susunan) === kunci(selectedWords)
+      )
+    : semuaJawabanBenar.some(
+        susunan => susunan.join(' ') === userSentence
+      );
+
+  let errorPattern = '';
+
+  if (!isCorrect) {
+    const userKey = selectedWords.join('_');
+
+    if (q.urutanBebas) {
+      const sisa = [...q.correctOrder];
+
+      const semuaBenar = selectedWords.every(word => {
+        const index = sisa.indexOf(word);
+
+        if (index === -1) return false;
+
+        sisa.splice(index, 1);
+        return true;
+      });
+
+      errorPattern =
+        (q.errorPatterns && q.errorPatterns[userKey]) ||
+        (semuaBenar ? 'JAWABAN_KURANG' : 'PILIHAN_SALAH');
+
+      modalErrorDescEl.innerText = semuaBenar
+        ? `Jawabanmu: "${userSentence}". Pilihanmu sudah benar, tetapi masih ada yang kurang.`
+        : `Jawabanmu: "${userSentence}". Ada pilihan yang tidak sesuai gambar. Coba lagi!`;
+
+    } else {
+      errorPattern =
+        (q.errorPatterns && q.errorPatterns[userKey]) ||
+        'URUTAN_TIDAK_TETAP';
+
+      modalErrorDescEl.innerText =
+        `Susunanmu: "${userSentence}" masih salah. Ayo coba lagi!`;
+    }
+
+    errorModalEl.classList.remove('hidden');
+
+    if (!state.selesai && selectedWords.length > 0) {
+      state.jumlahSalah++;
+    }
+
+  } else {
+    successModalEl.classList.remove('hidden');
+
+    if (!state.selesai) {
+      state.selesai = true;
+      state.waktuDetik =
+        Math.round((Date.now() - state.mulai) / 1000);
+
+      kirimHasilSoal(q, state);
+    }
+  }
+
+  const kodeKompetensi = normalizeCompetency(
+    q.kompetensiDashboard ||
+    q.kompetensi ||
+    dashboardCompetency
+  );
+
+  // Kirim jawaban benar maupun salah ke Django.
+  await kirimEventDashboard({
+    event_id: buatEventId(),
+    item_id: q.id,
+    question_id: q.id,
+    kompetensi: kodeKompetensi,
+    level: currentLevel,
+    benar: isCorrect,
+    is_correct: isCorrect,
+    pola: errorPattern,
+    error_code: errorPattern,
+    error_pattern: errorPattern,
+    waktu_ms: responseTimeMs,
+    response_time_ms: responseTimeMs,
+    petunjuk: false,
+    used_hint: false,
+    waktu: new Date().toISOString()
+  });
+}
+
+// ============================================================
+// SENSOR GESTUR MEDIAPIPE
+// ============================================================
+
+const videoElement = document.getElementById('webcam');
+
+const CFG = {
+  detectConf: 0.6,
+  trackConf: 0.5,
+  filterMinCutoff: 0.8,
+  filterBeta: 0.05,
+  filterDCutoff: 1.0,
+  smooth: 0.5,
+  edgeMargin: 0.08,
+  pinchOn: 0.50,
+  pinchOff: 0.80,
+  pinchOnFrames: 2,
+  pinchOffFrames: 3,
+  lostGraceFrames: 20,
+  grabWindowMs: 700,
+  grabPadding: 40,
+  dropPadding: 40,
+  hitRadius: 20,
+  dwellMs: 1200,
+  lockDistance: 60
+};
+
+let smoothX = null;
+let smoothY = null;
+
+let pinchActive = false;
+let pinchFrames = 0;
+let openFrames = 0;
+let lostFrames = 0;
+
+let releasePos = null;
+let pinchStartAt = 0;
+
+let hoverEl = null;
+let dwellStart = 0;
+let dwellLock = null;
+
+// ============================================================
+// FILTER ONE EURO
+// ============================================================
+
+class OneEuro {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.xPrev = null;
+    this.dxPrev = 0;
+    this.tPrev = 0;
+  }
+
+  static alpha(cutoff, dt) {
+    const tau = 1 / (2 * Math.PI * cutoff);
+
+    return 1 / (1 + tau / dt);
+  }
+
+  filter(x, t) {
+    if (this.xPrev === null) {
+      this.xPrev = x;
+      this.dxPrev = 0;
+      this.tPrev = t;
+
+      return x;
+    }
+
+    const dt = Math.max((t - this.tPrev) / 1000, 0.001);
+
+    this.tPrev = t;
+
+    const dx = (x - this.xPrev) / dt;
+
+    this.dxPrev +=
+      OneEuro.alpha(CFG.filterDCutoff, dt) *
+      (dx - this.dxPrev);
+
+    const cutoff =
+      CFG.filterMinCutoff +
+      CFG.filterBeta * Math.abs(this.dxPrev);
+
+    this.xPrev +=
+      OneEuro.alpha(cutoff, dt) * (x - this.xPrev);
+
+    return this.xPrev;
+  }
+}
+
+const lmFilters = Array.from(
+  { length: 21 },
+  () => ({
+    x: new OneEuro(),
+    y: new OneEuro()
+  })
+);
+
+function resetLandmarkFilters() {
+  lmFilters.forEach(filter => {
+    filter.x.reset();
+    filter.y.reset();
+  });
+}
+
+function smoothLandmarks(raw, vw, vh, t) {
+  return raw.map((point, index) => ({
+    x: lmFilters[index].x.filter(point.x * vw, t) / vw,
+    y: lmFilters[index].y.filter(point.y * vh, t) / vh
+  }));
+}
+
+// ============================================================
+// GAMBAR RANGKA TANGAN
+// ============================================================
+
+const DOT_COLORS = {
+  line: '#60a5fa',
+  joint: '#ffffff',
+  jointEdge: '#3b82f6',
+  tipEdge: '#ffffff',
+  open: '#f97316',
+  near: '#fbbf24',
+  pinch: '#10b981',
+  shadow: 'rgba(15, 23, 42, 0.35)'
+};
+
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [5, 9], [9, 10], [10, 11], [11, 12],
+  [9, 13], [13, 14], [14, 15], [15, 16],
+  [13, 17], [17, 18], [18, 19], [19, 20],
+  [0, 17]
+];
+
+const FINGER_TIPS = [4, 8, 12, 16, 20];
+
+const handCanvas = document.createElement('canvas');
+
+handCanvas.style.cssText =
+  'position:fixed;left:0;top:0;pointer-events:none;' +
+  'z-index:2147483000;display:none;';
+
+document.body.appendChild(handCanvas);
+
+const handCtx = handCanvas.getContext('2d');
+
+const camCanvas = document.createElement('canvas');
+
+camCanvas.style.cssText =
+  'position:fixed;pointer-events:none;' +
+  'z-index:2147483001;display:none;';
+
+document.body.appendChild(camCanvas);
+
+const camCtx = camCanvas.getContext('2d');
+
+function hideMarkers() {
+  handCanvas.style.display = 'none';
+  camCanvas.style.display = 'none';
+}
+
+function paintHand(ctx, pt, state, scale) {
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = DOT_COLORS.shadow;
+  ctx.shadowBlur = 6 * scale;
+
+  ctx.lineWidth = 4 * scale;
+  ctx.strokeStyle = DOT_COLORS.line;
+  ctx.beginPath();
+
+  HAND_CONNECTIONS.forEach(([a, b]) => {
+    const p = pt(a);
+    const q = pt(b);
+
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(q.x, q.y);
+  });
+
+  ctx.stroke();
+
+  if (state !== 'open') {
+    const thumb = pt(4);
+    const index = pt(8);
+
+    ctx.lineWidth = 5 * scale;
+    ctx.strokeStyle =
+      state === 'pinch'
+        ? DOT_COLORS.pinch
+        : DOT_COLORS.near;
+
+    ctx.beginPath();
+    ctx.moveTo(thumb.x, thumb.y);
+    ctx.lineTo(index.x, index.y);
+    ctx.stroke();
+  }
+
+  for (let id = 0; id < 21; id++) {
+    const point = pt(id);
+    const isTip = FINGER_TIPS.includes(id);
+
+    let fill = DOT_COLORS.joint;
+
+    if (id === 4 || id === 8) {
+      if (state === 'pinch') {
+        fill = DOT_COLORS.pinch;
+      } else if (state === 'near') {
+        fill = DOT_COLORS.near;
+      } else {
+        fill = DOT_COLORS.open;
+      }
+    }
+
+    ctx.beginPath();
+    ctx.arc(
+      point.x,
+      point.y,
+      (isTip ? 13 : 7) * scale,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    ctx.lineWidth = (isTip ? 3 : 2) * scale;
+    ctx.strokeStyle =
+      isTip
+        ? DOT_COLORS.tipEdge
+        : DOT_COLORS.jointEdge;
+
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+}
+
+function drawMarkers(landmarks, toScreen, state) {
+  const dpr = window.devicePixelRatio || 1;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  if (
+    handCanvas.width !== Math.round(width * dpr) ||
+    handCanvas.height !== Math.round(height * dpr)
+  ) {
+    handCanvas.width = Math.round(width * dpr);
+    handCanvas.height = Math.round(height * dpr);
+
+    handCanvas.style.width = `${width}px`;
+    handCanvas.style.height = `${height}px`;
+  }
+
+  handCanvas.style.display = 'block';
+
+  handCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  handCtx.clearRect(0, 0, width, height);
+
+  paintHand(
+    handCtx,
+    id => toScreen(landmarks[id]),
+    state,
+    1
+  );
+
+  const rect = videoElement.getBoundingClientRect();
+
+  if (!rect.width || !rect.height) return;
+
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+
+  if (camCanvas.width !== w || camCanvas.height !== h) {
+    camCanvas.width = w;
+    camCanvas.height = h;
+  }
+
+  camCanvas.style.display = 'block';
+  camCanvas.style.left = `${rect.left}px`;
+  camCanvas.style.top = `${rect.top}px`;
+  camCanvas.style.width = `${w}px`;
+  camCanvas.style.height = `${h}px`;
+
+  const vw = videoElement.videoWidth || 4;
+  const vh = videoElement.videoHeight || 3;
+
+  const videoScale = Math.max(w / vw, h / vh);
+
+  const dw = vw * videoScale;
+  const dh = vh * videoScale;
+
+  const ox = (w - dw) / 2;
+  const oy = (h - dh) / 2;
+
+  camCtx.clearRect(0, 0, w, h);
+
+  paintHand(
+    camCtx,
+    id => ({
+      x: ox + (1 - landmarks[id].x) * dw,
+      y: oy + landmarks[id].y * dh
+    }),
+    state,
+    0.4
+  );
+}
+
+// ============================================================
+// KURSOR DAN DETEKSI TOMBOL
+// ============================================================
+
+function setCursorProgress(progress) {
+  const px = Math.max(0, Math.min(1, progress)) * 10;
+
+  virtualCursorEl.style.boxShadow =
+    px > 0
+      ? `0 0 0 ${px}px rgba(249,115,22,0.35)`
+      : '';
+}
+
+function resetDwell() {
+  if (hoverEl) {
+    hoverEl.classList.remove('cursor-hover');
+  }
+
+  hoverEl = null;
+  dwellStart = 0;
+
+  setCursorProgress(0);
+}
+
+function findInteractiveNear(x, y) {
+  const radius = CFG.hitRadius;
+
+  const offsets = [
+    [0, 0],
+    [radius, 0],
+    [-radius, 0],
+    [0, radius],
+    [0, -radius]
+  ];
+
+  for (const [dx, dy] of offsets) {
+    const el = document.elementFromPoint(x + dx, y + dy);
+
+    const hit = el
+      ? el.closest('.interactive-elem, .interactive-cancel')
+      : null;
+
+    if (hit) return hit;
+  }
+
+  return null;
+}
+
+function findWordNear(x, y) {
+  const padding = CFG.grabPadding;
+
+  let best = null;
+  let bestDistance = Infinity;
+
+  document.querySelectorAll('.interactive-word').forEach(el => {
+    const rect = el.getBoundingClientRect();
+
+    if (
+      x >= rect.left - padding &&
+      x <= rect.right + padding &&
+      y >= rect.top - padding &&
+      y <= rect.bottom + padding
+    ) {
+      const distance = Math.hypot(
+        x - (rect.left + rect.width / 2),
+        y - (rect.top + rect.height / 2)
+      );
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = el;
+      }
+    }
+  });
+
+  return best;
+}
+
+function isInsideDropZone(x, y) {
+  const rect = dropZoneEl.getBoundingClientRect();
+  const padding = CFG.dropPadding;
+
+  return (
+    x >= rect.left - padding &&
+    x <= rect.right + padding &&
+    y >= rect.top - padding &&
+    y <= rect.bottom + padding
+  );
+}
+
+function updateDwell(x, y, now) {
+  if (dwellLock) {
+    const distance = Math.hypot(
+      x - dwellLock.x,
+      y - dwellLock.y
+    );
+
+    if (distance < CFG.lockDistance) {
+      resetDwell();
+      return;
+    }
+
+    dwellLock = null;
+  }
+
+  const target = findInteractiveNear(x, y);
+
+  if (!target) {
+    resetDwell();
+    return;
+  }
+
+  if (target !== hoverEl) {
+    resetDwell();
+
+    hoverEl = target;
+    hoverEl.classList.add('cursor-hover');
+
+    dwellStart = now;
+    return;
+  }
+
+  const progress = (now - dwellStart) / CFG.dwellMs;
+
+  setCursorProgress(progress);
+
+  if (progress >= 1) {
+    const targetClick = hoverEl;
+
+    dwellLock = { x, y };
+
+    resetDwell();
+
+    targetClick.click();
+  }
+}
+
+function dropGrabbedWord(x, y) {
+  if (!grabbedWord) return;
+
+  if (isInsideDropZone(x, y)) {
+    selectedWords.push(grabbedWord);
+  } else {
+    availableWords.push(grabbedWord);
+  }
+
+  grabbedWord = null;
+
+  floatingWordEl.style.display = 'none';
+
+  renderWordBank();
+  renderDropZone();
+}
+
+// ============================================================
+// HASIL DETEKSI MEDIAPIPE
+// ============================================================
+
+function onResults(results) {
+  const now = performance.now();
+
+  if (
+    !results.multiHandLandmarks ||
+    results.multiHandLandmarks.length === 0
+  ) {
+    lostFrames++;
+
+    if (lostFrames > CFG.lostGraceFrames) {
+      gestureStatusEl.innerText = 'Mencari Tangan...';
+
+      cameraDotEl.className =
+        'w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping';
+
+      virtualCursorEl.style.display = 'none';
+      floatingWordEl.style.display = 'none';
+
+      hideMarkers();
+      resetDwell();
+
+      pinchActive = false;
+      pinchFrames = 0;
+      openFrames = 0;
+
+      smoothX = null;
+      smoothY = null;
+
+      resetLandmarkFilters();
+
+      if (grabbedWord) {
+        availableWords.push(grabbedWord);
+        grabbedWord = null;
+
+        renderWordBank();
+        renderDropZone();
+      }
+    }
+
+    return;
+  }
+
+  lostFrames = 0;
+
+  const vw = videoElement.videoWidth || 4;
+  const vh = videoElement.videoHeight || 3;
+
+  const landmarks = smoothLandmarks(
+    results.multiHandLandmarks[0],
+    vw,
+    vh,
+    now
+  );
+
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const wrist = landmarks[0];
+  const midMcp = landmarks[9];
+
+  const distance = (a, b) =>
+    Math.hypot(
+      (a.x - b.x) * vw,
+      (a.y - b.y) * vh
+    );
+
+  const handSize = Math.max(
+    distance(wrist, midMcp),
+    0.0001
+  );
+
+  const ratio = distance(thumbTip, indexTip) / handSize;
+
+  // Hysteresis cubitan.
+  if (ratio < CFG.pinchOn) {
+    pinchFrames++;
+    openFrames = 0;
+  } else if (ratio > CFG.pinchOff) {
+    openFrames++;
+    pinchFrames = 0;
+  } else {
+    pinchFrames = 0;
+    openFrames = 0;
+  }
+
+  const wasPinching = pinchActive;
+
+  if (!pinchActive && pinchFrames >= CFG.pinchOnFrames) {
+    pinchActive = true;
+    pinchStartAt = now;
+  }
+
+  if (pinchActive && openFrames >= CFG.pinchOffFrames) {
+    pinchActive = false;
+  }
+
+  const margin = CFG.edgeMargin;
+
+  const toScreen = point => ({
+    x:
+      Math.min(
+        1,
+        Math.max(
+          0,
+          ((1 - point.x) - margin) / (1 - 2 * margin)
+        )
+      ) * window.innerWidth,
+
+    y:
+      Math.min(
+        1,
+        Math.max(
+          0,
+          (point.y - margin) / (1 - 2 * margin)
+        )
+      ) * window.innerHeight
+  });
+
+  const thumbScreen = toScreen(thumbTip);
+  const indexScreen = toScreen(indexTip);
+
+  const usePinchPoint =
+    pinchActive || ratio < CFG.pinchOn;
+
+  const targetX = usePinchPoint
+    ? (thumbScreen.x + indexScreen.x) / 2
+    : indexScreen.x;
+
+  const targetY = usePinchPoint
+    ? (thumbScreen.y + indexScreen.y) / 2
+    : indexScreen.y;
+
+  if (smoothX === null) {
+    smoothX = targetX;
+    smoothY = targetY;
+  } else {
+    smoothX += (targetX - smoothX) * CFG.smooth;
+    smoothY += (targetY - smoothY) * CFG.smooth;
+  }
+
+  const screenX = smoothX;
+  const screenY = smoothY;
+
+  if (pinchActive && openFrames === 1) {
+    releasePos = {
+      x: screenX,
+      y: screenY
+    };
+  }
+
+  if (pinchActive && openFrames === 0) {
+    releasePos = null;
+  }
+
+  const state = pinchActive
+    ? 'pinch'
+    : (ratio < CFG.pinchOff ? 'near' : 'open');
+
+  cameraDotEl.className =
+    'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
+
+  gestureStatusEl.innerText = pinchActive
+    ? 'Mencubit 🤏'
+    : (state === 'near' ? 'Hampir cubit...' : 'Telunjuk Aktif 👆');
+
+  virtualCursorEl.style.display = 'flex';
+  virtualCursorEl.style.left = `${screenX}px`;
+  virtualCursorEl.style.top = `${screenY}px`;
+  virtualCursorEl.innerText = pinchActive ? '🤏' : '👆';
+
+  drawMarkers(landmarks, toScreen, state);
+
+  if (grabbedWord) {
+    floatingWordEl.style.display = 'block';
+    floatingWordEl.style.left = `${screenX}px`;
+    floatingWordEl.style.top = `${screenY - 25}px`;
+    floatingWordEl.innerText = `🤏 ${grabbedWord}`;
+  } else {
+    floatingWordEl.style.display = 'none';
+  }
+
+  // Mengambil kata dengan gestur cubit.
+  if (
+    pinchActive &&
+    !grabbedWord &&
+    !isImageZoomOpen() &&
+    now - pinchStartAt <= CFG.grabWindowMs
+  ) {
+    const wordTarget = findWordNear(screenX, screenY);
+
+    if (wordTarget) {
+      const word = wordTarget.dataset.word;
+      const index = availableWords.indexOf(word);
+
+      if (index !== -1) {
+        availableWords.splice(index, 1);
+        grabbedWord = word;
+
+        renderWordBank();
+        renderDropZone();
+      }
+    }
+  }
+
+  // Melepaskan kata pada zona jawaban.
+  if (!pinchActive && wasPinching && grabbedWord) {
+    const position = releasePos || {
+      x: screenX,
+      y: screenY
+    };
+
+    dropGrabbedWord(position.x, position.y);
+
+    releasePos = null;
+  }
+
+  // Telunjuk dipakai untuk menekan tombol ketika tidak mencubit.
+  if (
+    pinchActive ||
+    grabbedWord ||
+    ratio < CFG.pinchOn
+  ) {
+    resetDwell();
+  } else {
+    updateDwell(screenX, screenY, now);
+  }
+}
+
+// ============================================================
+// MULAI KAMERA DAN MEDIAPIPE
+// ============================================================
+
+try {
+  if (
+    typeof Hands === 'undefined' ||
+    typeof Camera === 'undefined' ||
+    !videoElement
+  ) {
+    throw new Error('MediaPipe atau elemen kamera tidak tersedia.');
+  }
+
+  const hands = new Hands({
+    locateFile: file =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: CFG.detectConf,
+    minTrackingConfidence: CFG.trackConf
+  });
+
+  hands.onResults(onResults);
+
+  const camera = new Camera(videoElement, {
+    onFrame: async () => {
+      await hands.send({
+        image: videoElement
+      });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start().catch(error => {
+    console.warn('Kamera tidak tersedia:', error);
+
+    gestureStatusEl.innerText = 'Mode Sentuh Saja';
+
+    cameraDotEl.className =
+      'w-1.5 h-1.5 rounded-full bg-rose-500';
+  });
+
+} catch (error) {
+  console.warn('Sensor gestur tidak tersedia:', error);
+
+  gestureStatusEl.innerText = 'Mode Sentuh Aktif';
+}
+
+// Tampilkan soal pertama.
+renderQuestion();
+.word-card {
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.word-card:active {
+  transform: scale(0.95);
+}
+
+.cursor-hover {
+  border-color: #f97316 !important;
+  background-color: #ffedd5 !important;
+  transform: scale(1.03);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3) !important;
+}
+
+#success-modal:not(.hidden) > div {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---------- Halaman hasil akhir level ---------- */
+#result-modal:not(.hidden) .result-card {
+  animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.result-bounce {
+  animation: resultBounce 1.1s ease-in-out infinite;
+}
+
+.result-twinkle {
+  animation: resultTwinkle 1.8s ease-in-out infinite;
+}
+
+.result-star {
+  display: inline-block;
+  opacity: 0;
+  animation: starPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.result-score-ring {
+  background: conic-gradient(#f97316, #f43f5e, #a855f7, #3b82f6, #10b981, #fbbf24, #f97316);
+  animation: ringSpin 6s linear infinite;
+}
+.result-score-ring > div {
+  animation: ringSpin 6s linear infinite reverse;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -30px;
+  opacity: 0.95;
+  animation-name: confettiFall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes resultBounce {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-10px) rotate(4deg); }
+}
+
+@keyframes resultTwinkle {
+  0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.5; }
+  50% { transform: scale(1.3) rotate(20deg); opacity: 1; }
+}
+
+.result-star.off {
+  filter: grayscale(1);
+  animation-name: starPopOff;
+}
+
+@keyframes starPopOff {
+  0% { transform: scale(0) rotate(-120deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 0.25; }
+}
+
+@keyframes starPop {
+  0% { transform: scale(0) rotate(-120deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes ringSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); }
+  100% { transform: translateY(110vh) rotate(720deg); }
+}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LENTERA - Misi 1: Menyusun Kalimat</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="misi1.css" />
+
+  <!-- MediaPipe Hands & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 h-screen overflow-hidden flex flex-col justify-between select-none">
+
+  <!-- Header / Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <span class="text-xl">✨</span>
+      <h1 class="font-bold text-lg text-slate-900 tracking-tight">LENTERA</h1>
+      <span class="bg-orange-100 text-orange-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+        Literasi · Menyusun Kalimat
+      </span>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium text-slate-500">Soal <span id="soal-num">1</span>/<span id="soal-total">2</span></span>
+        <div class="w-28 bg-slate-200 rounded-full h-2 overflow-hidden">
+          <div id="progress-bar" class="bg-orange-500 h-2 rounded-full transition-all duration-300" style="width: 50%"></div>
+        </div>
+      </div>
+      <span id="level-badge" class="bg-blue-50 text-blue-600 text-xs font-bold px-2.5 py-1 rounded-lg border border-blue-200">
+        Level 3
+      </span>
+    </div>
+  </header>
+
+  <!-- Main Game Container -->
+  <main class="max-w-6xl mx-auto w-full p-4 flex-1 flex flex-row items-center gap-5">
+
+    <!-- KOLOM KIRI: konten soal -->
+    <div class="flex-1 min-w-0 flex flex-col gap-4">
+
+    <!-- Baris atas: Card Pertanyaan (kiri) + tombol aksi (kanan, sejajar kotak soal) -->
+    <div class="flex flex-row items-stretch gap-4">
+
+    <!-- Card Pertanyaan & Ilustrasi -->
+    <div class="flex-1 min-w-0 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex items-center gap-4">
+    <!-- Gambar soal -->
+    <div id="soal-gambar" class="relative bg-slate-100 w-32 h-32 rounded-xl flex items-center justify-center text-4xl shrink-0 border border-slate-200 overflow-hidden">
+    </div>
+
+    <!-- Teks pertanyaan -->
+    <div class="flex flex-col gap-2 flex-1 min-w-0">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+        LIHAT GAMBAR, LALU SUSUN KALIMAT YANG TEPAT
+        </span>
+
+        <h2 id="soal-instruksi" class="text-xl font-bold text-slate-800">
+        "Apa yang sedang dilakukan Ibu?"
+        </h2>
+
+        <button id="audio-btn" class="interactive-elem flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 w-fit bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 transition cursor-pointer">
+        🔊 <span>Dengarkan soal</span>
+        </button>
+    </div>
+    </div>
+
+    <!-- Tombol aksi: di kanan kotak soal (di luar kotak), tingginya mengikuti kotak soal -->
+    <div class="flex flex-col gap-3 shrink-0 w-40">
+      <button id="reset-btn" class="interactive-elem flex-1 w-full px-4 rounded-xl border border-slate-300 bg-white font-semibold text-sm text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+        Reset
+      </button>
+      <button id="submit-btn" class="interactive-elem flex-1 w-full px-4 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 shadow-md shadow-blue-200 transition cursor-pointer">
+        Periksa Jawaban
+      </button>
+    </div>
+
+    </div>
+
+    <!-- Area Target (Drop Zone) -->
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col gap-2">
+      <div class="flex justify-between items-center">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Target Kalimat:</span>
+        <span class="text-xs font-bold text-orange-600">Lepas cubitan di kotak ini</span>
+      </div>
+      <div id="drop-zone" class="flex flex-wrap gap-2.5 min-h-[56px] p-3 rounded-xl bg-slate-50 border-2 border-dashed border-slate-300 items-center transition">
+        <span class="text-xs text-slate-400 italic">Cubit kata di bawah, seret, lalu lepaskan di sini...</span>
+      </div>
+    </div>
+
+    <!-- Area Pilihan Kata (Word Bank) -->
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col gap-2">
+      <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pilihan Kata (Cubit untuk ambil):</span>
+      <div id="word-bank" class="flex flex-wrap gap-2.5 min-h-[50px] items-center">
+        <!-- Pilihan kata dirender via JS -->
+      </div>
+    </div>
+
+    <!-- Panduan Gestur -->
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5 px-3 flex items-center gap-2.5 text-xs text-amber-800">
+      <span class="text-base">💡</span>
+      <div>
+        <span class="font-bold">Panduan Gestur:</span>
+        <span>🤏 <b>Cubit (Jempol + Telunjuk)</b> untuk seret kata. Gunakan <b>Telunjuk 1 titik</b> untuk klik tombol & hapus kata. <b>Tahan telunjuk di gambar soal</b> 🔍 untuk memperbesar gambar.</span>
+      </div>
+    </div>
+
+    </div>
+
+  </main>
+
+  <!-- POPUP GAMBAR DIPERBESAR -->
+  <div id="image-modal" class="fixed inset-0 bg-slate-900/85 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden">
+    <div class="bg-white rounded-3xl shadow-2xl border-4 border-white p-4 flex flex-col items-center gap-3 max-w-[96vw]">
+      <div id="image-modal-content" class="bg-slate-100 rounded-2xl flex items-center justify-center overflow-hidden" style="width:min(88vw,62vh);height:min(88vw,62vh);"></div>
+      <p id="image-modal-caption" class="text-lg font-bold text-slate-800 text-center"></p>
+      <button id="image-modal-close" class="interactive-elem px-10 py-3 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white font-extrabold text-base rounded-xl shadow-lg cursor-pointer">
+        ✕ Tutup
+      </button>
+    </div>
+  </div>
+
+  <!-- POPUP SUKSES -->
+  <div id="success-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden">
+    <div class="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 rounded-3xl max-w-md w-full p-2 shadow-2xl border-4 border-white">
+      <div class="bg-white rounded-[22px] p-6 text-center flex flex-col items-center gap-3 relative overflow-hidden">
+        <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center text-3xl shadow-inner animate-pulse">
+          🏆
+        </div>
+        <div class="flex flex-col gap-1">
+          <h2 class="text-2xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-rose-600">
+            HEBAT! YEEAY! 🎉
+          </h2>
+          <p class="text-xs font-medium text-slate-600">
+            Susunan kalimatmu benar! Lanjut ke soal berikutnya.
+          </p>
+        </div>
+        <button id="success-next-btn" class="interactive-elem w-full py-3 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white font-bold text-sm rounded-xl shadow-lg cursor-pointer">
+          Lanjut 🚀
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP SALAH -->
+  <div id="error-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-3">
+      <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl">
+        💡
+      </div>
+      <div class="flex flex-col gap-1">
+        <h3 class="text-lg font-bold text-slate-900">Kurang tepat, nilaimu berkurang 5</h3>
+        <p id="modal-error-desc" class="text-xs text-slate-600 leading-relaxed">
+          Susunan kalimat belum sesuai struktur. Ayo coba perbaiki lagi!
+        </p>
+      </div>
+      <button id="modal-close-btn" class="interactive-elem w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl cursor-pointer">
+        Coba Lagi
+      </button>
+    </div>
+  </div>
+
+  <!-- POPUP HASIL AKHIR LEVEL -->
+  <div id="result-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden overflow-hidden">
+    <!-- Confetti (dibuat via JS) -->
+    <div id="confetti-layer" class="absolute inset-0 overflow-hidden pointer-events-none"></div>
+
+    <div class="relative bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 rounded-[2rem] max-w-lg w-full p-2 shadow-2xl border-4 border-white result-card">
+      <div class="bg-white rounded-[1.5rem] px-6 py-5 text-center flex flex-col items-center gap-3 relative overflow-hidden">
+
+        <!-- Hiasan pojok -->
+        <span class="absolute top-3 left-4 text-2xl result-twinkle">✨</span>
+        <span class="absolute top-3 right-4 text-2xl result-twinkle" style="animation-delay:0.5s">✨</span>
+        <span class="absolute bottom-24 left-5 text-xl result-twinkle" style="animation-delay:1s">⭐</span>
+        <span class="absolute bottom-24 right-5 text-xl result-twinkle" style="animation-delay:1.5s">⭐</span>
+
+        <div class="text-6xl result-bounce">🏆</div>
+
+        <div class="flex flex-col gap-0.5">
+          <span id="result-level-label" class="text-[11px] font-bold uppercase tracking-widest text-orange-500">Level 1 Selesai</span>
+          <h2 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 via-rose-600 to-fuchsia-600">
+            LUAR BIASA! 🎉
+          </h2>
+        </div>
+
+        <!-- Bintang -->
+        <div id="result-stars" class="flex items-center gap-2 text-4xl">
+          <span class="result-star" style="animation-delay:0.3s">⭐</span>
+          <span class="result-star text-5xl" style="animation-delay:0.6s">⭐</span>
+          <span class="result-star" style="animation-delay:0.9s">⭐</span>
+        </div>
+
+        <!-- Nilai -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nilai Kamu</span>
+          <div class="result-score-ring w-36 h-36 rounded-full flex items-center justify-center shadow-xl">
+            <div class="w-[7.5rem] h-[7.5rem] bg-white rounded-full flex items-center justify-center">
+              <span id="result-score" class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-orange-500 to-rose-600">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Statistik -->
+        <div class="flex items-center gap-3 w-full justify-center">
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2 flex flex-col items-center">
+            <span id="result-correct" class="text-lg font-extrabold text-emerald-600">3/3</span>
+            <span class="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">Langsung</span>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex flex-col items-center">
+            <span id="result-predikat" class="text-lg font-extrabold text-amber-600">Sempurna</span>
+            <span class="text-[10px] font-semibold text-amber-700 uppercase tracking-wide">Predikat</span>
+          </div>
+        </div>
+
+        <p class="text-xs font-medium text-slate-600">
+          Semua kalimatmu tersusun dengan benar. Kamu hebat sekali! 🌟
+        </p>
+
+        <div class="flex gap-3 w-full">
+          <button id="result-retry-btn" class="interactive-elem flex-1 py-3 rounded-xl border border-slate-300 bg-white font-semibold text-sm text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+            🔁 Main Lagi
+          </button>
+          <button id="result-level-btn" class="interactive-elem flex-1 py-3 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white font-bold text-sm rounded-xl shadow-lg cursor-pointer">
+            Pilih Level 🚀
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Webcam & Virtual Cursor -->
+  <div class="fixed bottom-3 right-3 w-36 flex flex-col items-end gap-2 z-50">
+    <!-- Tombol Kembali (soal sebelumnya / halaman level) -->
+    <button id="back-btn" class="interactive-elem px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs shadow-md transition cursor-pointer">
+      ← Kembali
+    </button>
+
+    <div class="w-full bg-slate-900 border-2 border-slate-700 rounded-xl overflow-hidden shadow-2xl p-1.5 flex flex-col items-center gap-1">
+      <video id="webcam" class="w-full h-20 bg-black rounded-lg transform -scale-x-100 object-cover" autoplay playsinline muted></video>
+      <div class="flex items-center gap-1 text-[9px] text-emerald-400 font-medium w-full justify-center">
+        <span id="camera-dot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="gesture-status">Mencari Tangan...</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="virtual-cursor" class="fixed w-6 h-6 rounded-full bg-orange-500/80 border-2 border-white shadow-xl pointer-events-none z-[9999] hidden transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-[9px] text-white font-bold">
+    👆
+  </div>
+
+  <div id="floating-word" class="fixed hidden bg-orange-500 text-white font-bold px-3 py-1.5 rounded-xl shadow-2xl pointer-events-none z-[10000] transform -translate-x-1/2 -translate-y-1/2 text-xs border-2 border-white">
+  </div>
+
+  <!-- JavaScript File -->
+  <!-- Data soal (edit soal & gambar HANYA di file ini) -->
+  <script src="soal-misi1.js"></script>
+  <script src="misi1.js"></script>
+</body>
+</html>
+
+const urlParams = new URLSearchParams(window.location.search);
+
+// Token demo hanya untuk kompatibilitas laporan lokal Flask.
+const ssoToken = urlParams.get('ssoToken') || 'DEMO_TOKEN_123';
+const hasRealToken = Boolean(ssoToken && ssoToken !== 'DEMO_TOKEN_123');
+
+function decodeJwtPayload(token) {
+  try {
+    const part = String(token || '').split('.')[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch (error) {
+    console.warn('Payload token Dashboard tidak dapat dibaca:', error);
+    return null;
+  }
+}
+
+function normalizeCompetency(code) {
+  const value = String(code || '').trim();
+  const aliases = {
+    menyusun_kalimat: 'LT-KALIMAT',
+    MENYUSUN_KALIMAT: 'LT-KALIMAT',
+    kosakata: 'LT-KOSAKATA',
+    KOSAKATA: 'LT-KOSAKATA',
+    membaca_lancar: 'LT-LANCAR',
+    MEMBACA_LANCAR: 'LT-LANCAR',
+    pemahaman_bacaan: 'LT-PAHAM',
+    PEMAHAMAN_BACAAN: 'LT-PAHAM'
+  };
+  return aliases[value] || value;
+}
+
+const dashboardSession = hasRealToken ? decodeJwtPayload(ssoToken) : null;
+const dashboardCompetency = normalizeCompetency(
+  dashboardSession?.kompetensi || urlParams.get('kompetensi') || ''
+);
+const dashboardApiUrl = dashboardSession?.api || '';
+const dashboardHomeUrl = dashboardSession?.home || '';
+const hasDashboardSession = Boolean(
+  hasRealToken &&
+  dashboardSession &&
+  dashboardApiUrl &&
+  dashboardSession.misi &&
+  dashboardCompetency
+);
+
+// =============================================================
+// DATA SOAL
+// soal-misi1.js wajib dimuat sebelum file ini.
+// =============================================================
+
+if (
+  typeof questions === 'undefined' ||
+  !Array.isArray(questions) ||
+  questions.length === 0
+) {
+  alert(
+    'Data soal tidak ditemukan. Pastikan soal-misi1.js dimuat ' +
+    'sebelum misi1.js di misi1.html.'
+  );
+  throw new Error('questions tidak ditemukan atau kosong.');
+}
+
+function validateQuestions() {
+  const ids = new Set();
+
+  questions.forEach((q, n) => {
+    const label = `Soal ke-${n + 1} (${q.id || 'tanpa id'})`;
+
+    if (!q.id) {
+      console.warn(`[soal-misi1] ${label}: ID kosong`);
+    } else if (ids.has(q.id)) {
+      console.warn(`[soal-misi1] ${label}: ID duplikat`);
+    }
+
+    ids.add(q.id);
+
+    if (!q.instruksi) {
+      console.warn(`[soal-misi1] ${label}: instruksi kosong`);
+    }
+
+    if (!Array.isArray(q.correctOrder) || q.correctOrder.length === 0) {
+      console.warn(`[soal-misi1] ${label}: correctOrder kosong`);
+      return;
+    }
+
+    if (!Array.isArray(q.words)) {
+      console.warn(`[soal-misi1] ${label}: words tidak valid`);
+      return;
+    }
+
+    const pool = [...q.words];
+
+    q.correctOrder.forEach(word => {
+      const index = pool.indexOf(word);
+
+      if (index === -1) {
+        console.warn(
+          `[soal-misi1] ${label}: kata "${word}" di correctOrder ` +
+          'tidak ditemukan di words.'
+        );
+      } else {
+        pool.splice(index, 1);
+      }
+    });
+
+    if (q.jawabanLain !== undefined) {
+      if (
+        !Array.isArray(q.jawabanLain) ||
+        !q.jawabanLain.every(Array.isArray)
+      ) {
+        console.warn(
+          `[soal-misi1] ${label}: jawabanLain harus berupa array susunan.`
+        );
+        return;
+      }
+
+      q.jawabanLain.forEach((susunan, k) => {
+        const poolJawaban = [...q.words];
+
+        susunan.forEach(word => {
+          const index = poolJawaban.indexOf(word);
+
+          if (index === -1) {
+            console.warn(
+              `[soal-misi1] ${label}: kata "${word}" pada ` +
+              `jawabanLain ke-${k + 1} tidak ditemukan di words.`
+            );
+          } else {
+            poolJawaban.splice(index, 1);
+          }
+        });
+      });
+    }
+  });
+}
+
+validateQuestions();
+
+// =============================================================
+// LEVEL DAN KOMPETENSI
+// =============================================================
+
+const LEVEL_PAGE = 'level.html';
+
+const levelFromToken = Number(dashboardSession?.level || 0);
+const levelFromUrl = Number(urlParams.get('level') || 0);
+
+const currentLevel = hasDashboardSession
+  ? levelFromToken
+  : (
+      Number.isInteger(levelFromUrl) &&
+      levelFromUrl >= 1 &&
+      levelFromUrl <= 5
+        ? levelFromUrl
+        : 1
+    );
+
+// Semua soal lama pada level tersebut digunakan.
+// Kompetensi yang dicatat di Dashboard tetap mengikuti token.
+const levelQuestions = questions.filter(
+  q => Number(q.level) === currentLevel
+);
+
+if (
+  hasDashboardSession &&
+  (
+    !Number.isInteger(currentLevel) ||
+    currentLevel < 1 ||
+    currentLevel > 5
+  )
+) {
+  alert(
+    'Sesi Dashboard tidak valid. Silakan buka kembali misi dari Dashboard.'
+  );
+
+  if (dashboardHomeUrl) {
+    window.location.replace(dashboardHomeUrl);
+  }
+
+  throw new Error('Level Dashboard tidak valid.');
+}
+
+if (levelQuestions.length === 0) {
+  alert(`Level ${currentLevel} belum ada soalnya.`);
+
+  window.location.href =
+    hasDashboardSession && dashboardHomeUrl
+      ? dashboardHomeUrl
+      : LEVEL_PAGE;
+
+  throw new Error(`Tidak ada soal untuk level ${currentLevel}`);
+}
+
+function levelPageUrl() {
+  if (hasDashboardSession && dashboardHomeUrl) {
+    return dashboardHomeUrl;
+  }
+
+  const params = new URLSearchParams();
+
+  if (hasRealToken) {
+    params.set('ssoToken', ssoToken);
+  }
+
+  const competencyFromUrl = urlParams.get('kompetensi');
+
+  if (competencyFromUrl) {
+    params.set('kompetensi', competencyFromUrl);
+  }
+
+  const query = params.toString();
+
+  return query
+    ? `${LEVEL_PAGE}?${query}`
+    : LEVEL_PAGE;
+}
+
+let currentQuestionIdx = 0;
+let selectedWords = [];
+let availableWords = [];
+let grabbedWord = null;
+let startTime = Date.now();
+
+// =============================================================
+// PENILAIAN LOKAL
+// 0 salah = 100
+// 1 salah = 75
+// 2 salah = 50
+// 3+ salah = 25
+// =============================================================
+
+const SKOR_PER_PERCOBAAN = [100, 75, 50];
+const SKOR_MINIMUM = 25;
+
+function hitungSkorSoal(jumlahSalah) {
+  return jumlahSalah < SKOR_PER_PERCOBAAN.length
+    ? SKOR_PER_PERCOBAAN[jumlahSalah]
+    : SKOR_MINIMUM;
+}
+
+function tentukanPredikat(nilai) {
+  if (nilai >= 100) return 'Sempurna';
+  if (nilai >= 90) return 'Sangat Baik';
+  if (nilai >= 75) return 'Baik';
+  if (nilai >= 60) return 'Cukup';
+  return 'Perlu Pendampingan';
+}
+
+function buatSesiId() {
+  return (
+    `${Date.now().toString(36)}-` +
+    `${Math.random().toString(36).slice(2, 10)}`
+  );
+}
+
+let sesiId = buatSesiId();
+let soalState = {};
+
+function getSoalState(q) {
+  if (!soalState[q.id]) {
+    soalState[q.id] = {
+      mulai: Date.now(),
+      jumlahSalah: 0,
+      selesai: false,
+      waktuDetik: 0
+    };
+  }
+
+  return soalState[q.id];
+}
+
+function hitungHasilLevel() {
+  const daftar = levelQuestions.map(q => {
+    const state = getSoalState(q);
+
+    return {
+      soal_id: q.id,
+      jumlah_salah: state.jumlahSalah,
+      skor: hitungSkorSoal(state.jumlahSalah),
+      waktu_detik: state.waktuDetik
+    };
+  });
+
+  const total = daftar.length;
+
+  const nilai = total
+    ? Math.round(
+        (
+          daftar.reduce((jumlah, item) => jumlah + item.skor, 0) /
+          total
+        ) * 10
+      ) / 10
+    : 0;
+
+  const langsungBenar = daftar.filter(
+    item => item.jumlah_salah === 0
+  ).length;
+
+  return {
+    daftar,
+    total,
+    nilai,
+    langsungBenar,
+    predikat: tentukanPredikat(nilai)
+  };
+}
+
+// =============================================================
+// LAPORAN LOKAL FLASK — DIPERTAHANKAN
+// =============================================================
+
+async function kirimJson(url, body) {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      console.warn(`Gagal mengirim ke ${url}: HTTP ${response.status}`);
+    }
+  } catch (error) {
+    console.warn(`Gagal mengirim ke ${url}:`, error);
+  }
+}
+
+function kirimHasilSoal(q, state) {
+  return kirimJson('/api/misi1/soal', {
+    ssoToken,
+    sesi_id: sesiId,
+    level: q.level,
+    soal_id: q.id,
+    jumlah_salah: state.jumlahSalah,
+    waktu_detik: state.waktuDetik
+  });
+}
+
+function kirimHasilLevel(hasil) {
+  return kirimJson('/api/misi1/level', {
+    ssoToken,
+    sesi_id: sesiId,
+    level: currentLevel,
+    total_soal: hasil.total,
+    soal: hasil.daftar.map(item => ({
+      soal_id: item.soal_id,
+      jumlah_salah: item.jumlah_salah,
+      waktu_detik: item.waktu_detik
+    }))
+  });
+}
+
+// =============================================================
+// INTEGRASI API DASHBOARD DJANGO
+// =============================================================
+
+const dashboardEventPromises = [];
+
+function buatDashboardEventId() {
+  if (
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === 'function'
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return (
+    `${Date.now().toString(36)}-` +
+    `${Math.random().toString(36).slice(2, 12)}`
+  );
+}
+
+function kirimEventDashboard(event) {
+  if (!hasDashboardSession || !dashboardApiUrl) {
+    return Promise.resolve({
+      ok: true,
+      dilewati: true
+    });
+  }
+
+  const promise = fetch(dashboardApiUrl, {
+    method: 'POST',
+    mode: 'cors',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${ssoToken}`
+    },
+    body: JSON.stringify({
+      ...event,
+      ssoToken
+    })
+  })
+    .then(async response => {
+      let body = {};
+
+      try {
+        body = await response.json();
+      } catch (_) {
+        body = {};
+      }
+
+      if (!response.ok || body.error) {
+        throw new Error(
+          body.error ||
+          `HTTP ${response.status} dari API Dashboard`
+        );
+      }
+
+      return {
+        ok: true,
+        data: body
+      };
+    })
+    .catch(error => {
+      console.error(
+        'Gagal mengirim jawaban ke Dashboard:',
+        error
+      );
+
+      return {
+        ok: false,
+        error: error.message || String(error)
+      };
+    });
+
+  dashboardEventPromises.push(promise);
+
+  return promise;
+}
+
+async function selesaikanMisiDashboard() {
+  if (!hasDashboardSession || !dashboardApiUrl) {
+    return {
+      ok: true,
+      dilewati: true
+    };
+  }
+
+  // Pastikan seluruh event jawaban telah selesai dikirim.
+  const hasilEvent = await Promise.all(dashboardEventPromises);
+
+  const gagal = hasilEvent.find(item => !item.ok);
+
+  if (gagal) {
+    console.error(
+      'Misi belum bisa diselesaikan karena ada event yang gagal:',
+      gagal.error
+    );
+
+    return {
+      ok: false,
+      error: gagal.error
+    };
+  }
+
+  try {
+    const response = await fetch(dashboardApiUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ssoToken}`
+      },
+      body: JSON.stringify({
+        ssoToken,
+        events: [],
+        selesai: true
+      })
+    });
+
+    let body = {};
+
+    try {
+      body = await response.json();
+    } catch (_) {
+      body = {};
+    }
+
+    if (
+      !response.ok ||
+      body.error ||
+      body.selesai !== true
+    ) {
+      const message =
+        body.error ||
+        `Dashboard belum menyatakan misi selesai (HTTP ${response.status}).`;
+
+      console.warn(message);
+
+      return {
+        ok: false,
+        error: message,
+        data: body
+      };
+    }
+
+    console.info(
+      'Misi berhasil diselesaikan di Dashboard.',
+      body
+    );
+
+    return {
+      ok: true,
+      data: body
+    };
+  } catch (error) {
+    console.error(
+      'Gagal mengonfirmasi penyelesaian misi:',
+      error
+    );
+
+    return {
+      ok: false,
+      error: error.message || String(error)
+    };
+  }
+}
+
+// =============================================================
+// ELEMEN HALAMAN
+// =============================================================
+
+const soalNumEl = document.getElementById('soal-num');
+const soalTotalEl = document.getElementById('soal-total');
+const soalGambarEl = document.getElementById('soal-gambar');
+const soalInstruksiEl = document.getElementById('soal-instruksi');
+const levelBadgeEl = document.getElementById('level-badge');
+const progressBarEl = document.getElementById('progress-bar');
+const dropZoneEl = document.getElementById('drop-zone');
+const wordBankEl = document.getElementById('word-bank');
+const gestureStatusEl = document.getElementById('gesture-status');
+const cameraDotEl = document.getElementById('camera-dot');
+const virtualCursorEl = document.getElementById('virtual-cursor');
+const floatingWordEl = document.getElementById('floating-word');
+const successModalEl = document.getElementById('success-modal');
+const errorModalEl = document.getElementById('error-modal');
+const modalErrorDescEl = document.getElementById('modal-error-desc');
+const resultModalEl = document.getElementById('result-modal');
+const resultScoreEl = document.getElementById('result-score');
+const resultCorrectEl = document.getElementById('result-correct');
+const resultLevelLabelEl = document.getElementById('result-level-label');
+const confettiLayerEl = document.getElementById('confetti-layer');
+
+// =============================================================
+// GAMBAR SOAL
+// =============================================================
+
+const IMAGE_PATH_REGEX = /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i;
+
+function renderGambar(q) {
+  const gambar = (q.gambar || '').trim();
+
+  soalGambarEl.innerHTML = '';
+  disableImageZoom();
+
+  if (!gambar) {
+    soalGambarEl.innerText = '🖼️';
+    return;
+  }
+
+  if (IMAGE_PATH_REGEX.test(gambar)) {
+    const img = document.createElement('img');
+
+    img.src = gambar;
+    img.alt = q.instruksi.replace(/"/g, '');
+    img.className = 'w-full h-full object-contain';
+
+    img.onerror = () => {
+      console.warn(
+        `[soal-misi1] Gambar tidak ditemukan: "${gambar}" (soal ${q.id}).`
+      );
+
+      soalGambarEl.innerHTML = '';
+      soalGambarEl.innerText = '🖼️';
+
+      disableImageZoom();
+    };
+
+    soalGambarEl.appendChild(img);
+  } else {
+    soalGambarEl.innerText = gambar;
+  }
+
+  enableImageZoom(q, gambar);
+}
+
+// =============================================================
+// ZOOM GAMBAR
+// =============================================================
+
+const imageModalEl = document.getElementById('image-modal');
+const imageModalContentEl = document.getElementById('image-modal-content');
+const imageModalCaptionEl = document.getElementById('image-modal-caption');
+
+function isImageZoomOpen() {
+  return !imageModalEl.classList.contains('hidden');
+}
+
+function disableImageZoom() {
+  soalGambarEl.classList.remove(
+    'interactive-elem',
+    'cursor-pointer'
+  );
+
+  soalGambarEl.onclick = null;
+  soalGambarEl.removeAttribute('title');
+}
+
+function enableImageZoom(q, gambar) {
+  soalGambarEl.classList.add(
+    'interactive-elem',
+    'cursor-pointer'
+  );
+
+  soalGambarEl.title = 'Klik untuk memperbesar gambar';
+  soalGambarEl.onclick = () => openImageZoom(q, gambar);
+
+  const hint = document.createElement('span');
+
+  hint.className =
+    'absolute bottom-1 right-1 bg-white/90 border border-slate-200 ' +
+    'rounded-full w-6 h-6 flex items-center justify-center text-xs shadow ' +
+    'pointer-events-none';
+
+  hint.innerText = '🔍';
+
+  soalGambarEl.appendChild(hint);
+}
+
+function openImageZoom(q, gambar) {
+  imageModalContentEl.innerHTML = '';
+
+  if (IMAGE_PATH_REGEX.test(gambar)) {
+    const img = document.createElement('img');
+
+    img.src = gambar;
+    img.alt = q.instruksi.replace(/"/g, '');
+    img.className = 'w-full h-full object-contain';
+
+    imageModalContentEl.appendChild(img);
+  } else {
+    const emoji = document.createElement('div');
+
+    emoji.className = 'leading-none text-center';
+    emoji.style.fontSize = 'min(40vw, 30vh)';
+    emoji.innerText = gambar;
+
+    imageModalContentEl.appendChild(emoji);
+  }
+
+  imageModalCaptionEl.innerText = q.instruksi;
+  imageModalEl.classList.remove('hidden');
+
+  resetDwell();
+  dwellLock = null;
+}
+
+function closeImageZoom() {
+  if (!isImageZoomOpen()) return;
+
+  imageModalEl.classList.add('hidden');
+  imageModalContentEl.innerHTML = '';
+
+  resetDwell();
+}
+
+document.getElementById('image-modal-close').onclick =
+  closeImageZoom;
+
+imageModalEl.addEventListener('click', event => {
+  if (event.target === imageModalEl) {
+    closeImageZoom();
+  }
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeImageZoom();
+  }
+});
+
+// =============================================================
+// TAMPILAN SOAL
+// =============================================================
+
+function renderQuestion() {
+  const q = levelQuestions[currentQuestionIdx];
+
+  soalNumEl.innerText = currentQuestionIdx + 1;
+  soalTotalEl.innerText = levelQuestions.length;
+
+  closeImageZoom();
+  renderGambar(q);
+
+  soalInstruksiEl.innerText = q.instruksi;
+  levelBadgeEl.innerText = `Level ${q.level}`;
+
+  progressBarEl.style.width =
+    `${((currentQuestionIdx + 1) / levelQuestions.length) * 100}%`;
+
+  selectedWords = [];
+  availableWords = [...q.words];
+  grabbedWord = null;
+
+  renderWordBank();
+  renderDropZone();
+
+  startTime = Date.now();
+}
+
+function renderWordBank() {
+  wordBankEl.innerHTML = '';
+
+  availableWords.forEach(word => {
+    const btn = document.createElement('div');
+
+    btn.className =
+      'word-card interactive-word bg-white border-2 border-slate-200 ' +
+      'hover:border-orange-400 font-semibold text-slate-700 px-4 py-2 ' +
+      'rounded-xl shadow-sm text-xs cursor-pointer';
+
+    btn.dataset.word = word;
+    btn.innerText = word;
+
+    btn.onclick = () => {
+      if (grabbedWord) return;
+
+      const index = availableWords.indexOf(word);
+
+      if (index === -1) return;
+
+      availableWords.splice(index, 1);
+      selectedWords.push(word);
+
+      renderWordBank();
+      renderDropZone();
+    };
+
+    wordBankEl.appendChild(btn);
+  });
+}
+
+function renderDropZone() {
+  dropZoneEl.innerHTML = '';
+
+  if (selectedWords.length === 0) {
+    dropZoneEl.innerHTML =
+      '<span class="text-xs text-slate-400 italic">' +
+      'Cubit kata di bawah, seret, lalu lepaskan di sini...' +
+      '</span>';
+
+    return;
+  }
+
+  selectedWords.forEach((word, index) => {
+    const chip = document.createElement('div');
+
+    chip.className =
+      'word-card interactive-cancel bg-orange-500 text-white ' +
+      'font-semibold px-3 py-1.5 rounded-xl flex items-center gap-2 ' +
+      'shadow-sm text-xs cursor-pointer';
+
+    chip.innerHTML =
+      `<span>${word}</span> ` +
+      '<span class="text-orange-200 font-bold text-xs">✕</span>';
+
+    chip.onclick = () => {
+      selectedWords.splice(index, 1);
+      availableWords.push(word);
+
+      renderWordBank();
+      renderDropZone();
+    };
+
+    dropZoneEl.appendChild(chip);
+  });
+}
+
+function resetAnswer() {
+  renderQuestion();
+}
+
+function playAudioPrompt() {
+  const q = levelQuestions[currentQuestionIdx];
+
+  const utterance = new SpeechSynthesisUtterance(
+    q.instruksi.replace(/"/g, '')
+  );
+
+  utterance.lang = 'id-ID';
+
+  window.speechSynthesis.speak(utterance);
+}
+
+document.getElementById('audio-btn').onclick = playAudioPrompt;
+document.getElementById('reset-btn').onclick = resetAnswer;
+document.getElementById('submit-btn').onclick = submitAnswer;
+
+document.getElementById('back-btn').onclick = () => {
+  successModalEl.classList.add('hidden');
+  errorModalEl.classList.add('hidden');
+
+  if (currentQuestionIdx > 0) {
+    currentQuestionIdx--;
+    renderQuestion();
+  } else {
+    window.location.href = levelPageUrl();
+  }
+};
+
+document.getElementById('modal-close-btn').onclick = () => {
+  errorModalEl.classList.add('hidden');
+};
+
+document.getElementById('success-next-btn').onclick = () => {
+  successModalEl.classList.add('hidden');
+
+  if (currentQuestionIdx + 1 < levelQuestions.length) {
+    currentQuestionIdx++;
+    renderQuestion();
+  } else {
+    showResult();
+  }
+};
+
+// =============================================================
+// HASIL, NILAI, BINTANG, DAN ANIMASI
+// =============================================================
+
+function launchConfetti() {
+  confettiLayerEl.innerHTML = '';
+
+  const colors = [
+    '#f97316',
+    '#fbbf24',
+    '#f43f5e',
+    '#3b82f6',
+    '#10b981',
+    '#a855f7',
+    '#ffffff'
+  ];
+
+  const emojis = ['⭐', '🎉', '✨', '🎊'];
+
+  for (let i = 0; i < 70; i++) {
+    const piece = document.createElement('span');
+
+    piece.className = 'confetti-piece';
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.animationDuration = `${2.5 + Math.random() * 3}s`;
+    piece.style.animationDelay = `${Math.random() * 3}s`;
+
+    if (i % 7 === 0) {
+      piece.innerText =
+        emojis[Math.floor(Math.random() * emojis.length)];
+
+      piece.style.fontSize = `${18 + Math.random() * 14}px`;
+    } else {
+      piece.style.width = `${6 + Math.random() * 8}px`;
+      piece.style.height = `${10 + Math.random() * 10}px`;
+
+      piece.style.background =
+        colors[Math.floor(Math.random() * colors.length)];
+
+      piece.style.borderRadius =
+        Math.random() > 0.5 ? '2px' : '50%';
+    }
+
+    confettiLayerEl.appendChild(piece);
+  }
+}
+
+function countUpScore(target, duration = 1600) {
+  const start = performance.now();
+
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    resultScoreEl.innerText = Math.round(target * eased);
+
+    if (t < 1) {
+      requestAnimationFrame(tick);
+    }
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function hitungBintang(nilai) {
+  if (nilai < 50) return 1;
+  if (nilai < 80) return 2;
+  return 3;
+}
+
+function tampilkanBintang(nilai) {
+  const jumlah = hitungBintang(nilai);
+
+  document.querySelectorAll('#result-stars .result-star')
+    .forEach((el, index) => {
+      el.classList.toggle('off', index >= jumlah);
+    });
+}
+
+function showResult() {
+  const hasil = hitungHasilLevel();
+
+  resultLevelLabelEl.innerText = `Level ${currentLevel} Selesai`;
+  resultCorrectEl.innerText = `${hasil.langsungBenar}/${hasil.total}`;
+
+  document.getElementById('result-predikat').innerText =
+    hasil.predikat;
+
+  resultScoreEl.innerText = '0';
+
+  tampilkanBintang(hasil.nilai);
+
+  resultModalEl.classList.remove('hidden');
+
+  launchConfetti();
+
+  setTimeout(() => countUpScore(hasil.nilai), 400);
+
+  // Simpan laporan level ke backend Flask lama.
+  kirimHasilLevel(hasil);
+
+  // Dashboard mengonfirmasi selesai setelah jawaban terkirim.
+  if (hasDashboardSession) {
+    selesaikanMisiDashboard().then(sync => {
+      if (!sync.ok) {
+        console.warn(
+          'Nilai lokal tersedia, tetapi status Dashboard belum terkonfirmasi:',
+          sync.error
+        );
+      }
+    });
+  }
+}
+
+document.getElementById('result-level-btn').onclick = () => {
+  window.location.href = levelPageUrl();
+};
+
+document.getElementById('result-retry-btn').onclick = () => {
+  // Sesi dari Dashboard tidak boleh mengulang misi yang sama
+  // setelah statusnya diselesaikan.
+  if (hasDashboardSession && dashboardHomeUrl) {
+    window.location.href = dashboardHomeUrl;
+    return;
+  }
+
+  resultModalEl.classList.add('hidden');
+  confettiLayerEl.innerHTML = '';
+
+  currentQuestionIdx = 0;
+  sesiId = buatSesiId();
+  soalState = {};
+
+  renderQuestion();
+};
+
+// =============================================================
+// VALIDASI JAWABAN DAN SINKRONISASI KE DASHBOARD
+// =============================================================
+
+async function submitAnswer() {
+  const q = levelQuestions[currentQuestionIdx];
+
+  if (
+    !errorModalEl.classList.contains('hidden') === false ||
+    !successModalEl.classList.contains('hidden') === false
+  ) {
+    return;
+  }
+
+  const state = getSoalState(q);
+  const responseTimeMs = Date.now() - startTime;
+  const userSentence = selectedWords.join(' ');
+
+  const semuaJawabanBenar = [
+    q.correctOrder,
+    ...(Array.isArray(q.jawabanLain) ? q.jawabanLain : [])
+  ];
+
+  const kunci = arr => [...arr].sort().join('|');
+
+  const isCorrect = q.urutanBebas
+    ? semuaJawabanBenar.some(
+        susunan => kunci(susunan) === kunci(selectedWords)
+      )
+    : semuaJawabanBenar.some(
+        susunan => susunan.join(' ') === userSentence
+      );
+
+  let errorPattern = '';
+
+  if (!isCorrect) {
+    const userKey = selectedWords.join('_');
+
+    if (q.urutanBebas) {
+      const sisa = [...q.correctOrder];
+
+      const semuaBenar = selectedWords.every(word => {
+        const index = sisa.indexOf(word);
+
+        if (index === -1) return false;
+
+        sisa.splice(index, 1);
+        return true;
+      });
+
+      errorPattern =
+        (q.errorPatterns && q.errorPatterns[userKey]) ||
+        (semuaBenar ? 'JAWABAN_KURANG' : 'PILIHAN_SALAH');
+
+      modalErrorDescEl.innerText = semuaBenar
+        ? `Jawabanmu: "${userSentence}". Pilihanmu sudah benar, tetapi masih ada yang kurang.`
+        : `Jawabanmu: "${userSentence}". Ada pilihan yang tidak sesuai gambar. Coba lagi!`;
+
+    } else {
+      errorPattern =
+        (q.errorPatterns && q.errorPatterns[userKey]) ||
+        'URUTAN_TIDAK_TETAP';
+
+      modalErrorDescEl.innerText =
+        `Susunanmu: "${userSentence}" masih salah. Ayo coba lagi!`;
+    }
+
+    errorModalEl.classList.remove('hidden');
+
+    if (!state.selesai && selectedWords.length > 0) {
+      state.jumlahSalah++;
+    }
+
+  } else {
+    successModalEl.classList.remove('hidden');
+
+    if (!state.selesai) {
+      state.selesai = true;
+      state.waktuDetik = Math.round(
+        (Date.now() - state.mulai) / 1000
+      );
+
+      kirimHasilSoal(q, state);
+    }
+  }
+
+  // Kompetensi dari token dipakai untuk pencatatan Dashboard.
+  // Label kompetensi soal lama tidak menimpa tugas murid.
+  const kodeKompetensiDashboard = hasDashboardSession
+    ? dashboardCompetency
+    : normalizeCompetency(
+        q.kompetensiDashboard || q.kompetensi || ''
+      );
+
+  await kirimEventDashboard({
+    event_id: buatDashboardEventId(),
+    item_id: q.id,
+    question_id: q.id,
+    kompetensi: kodeKompetensiDashboard,
+    level: currentLevel,
+    benar: isCorrect,
+    is_correct: isCorrect,
+    pola: errorPattern,
+    error_code: errorPattern,
+    error_pattern: errorPattern,
+    waktu_ms: responseTimeMs,
+    response_time_ms: responseTimeMs,
+    petunjuk: false,
+    used_hint: false,
+    waktu: new Date().toISOString()
+  });
+}
+
+// =============================================================
+// SENSOR GESTUR MEDIAPIPE
+// =============================================================
+
+const videoElement = document.getElementById('webcam');
+
+const CFG = {
+  detectConf: 0.6,
+  trackConf: 0.5,
+  filterMinCutoff: 0.8,
+  filterBeta: 0.05,
+  filterDCutoff: 1.0,
+  smooth: 0.5,
+  edgeMargin: 0.08,
+  pinchOn: 0.50,
+  pinchOff: 0.80,
+  pinchOnFrames: 2,
+  pinchOffFrames: 3,
+  lostGraceFrames: 20,
+  grabWindowMs: 700,
+  grabPadding: 40,
+  dropPadding: 40,
+  hitRadius: 20,
+  dwellMs: 1200,
+  lockDistance: 60
+};
+
+let smoothX = null;
+let smoothY = null;
+let pinchActive = false;
+let pinchFrames = 0;
+let openFrames = 0;
+let lostFrames = 0;
+let releasePos = null;
+let pinchStartAt = 0;
+let hoverEl = null;
+let dwellStart = 0;
+let dwellLock = null;
+
+// =============================================================
+// ONE EURO FILTER
+// =============================================================
+
+class OneEuro {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.xPrev = null;
+    this.dxPrev = 0;
+    this.tPrev = 0;
+  }
+
+  static alpha(cutoff, dt) {
+    const tau = 1 / (2 * Math.PI * cutoff);
+    return 1 / (1 + tau / dt);
+  }
+
+  filter(x, t) {
+    if (this.xPrev === null) {
+      this.xPrev = x;
+      this.dxPrev = 0;
+      this.tPrev = t;
+      return x;
+    }
+
+    const dt = Math.max(
+      (t - this.tPrev) / 1000,
+      0.001
+    );
+
+    this.tPrev = t;
+
+    const dx = (x - this.xPrev) / dt;
+
+    this.dxPrev +=
+      OneEuro.alpha(CFG.filterDCutoff, dt) *
+      (dx - this.dxPrev);
+
+    const cutoff =
+      CFG.filterMinCutoff +
+      CFG.filterBeta * Math.abs(this.dxPrev);
+
+    this.xPrev +=
+      OneEuro.alpha(cutoff, dt) * (x - this.xPrev);
+
+    return this.xPrev;
+  }
+}
+
+const lmFilters = Array.from(
+  { length: 21 },
+  () => ({
+    x: new OneEuro(),
+    y: new OneEuro()
+  })
+);
+
+function resetLandmarkFilters() {
+  lmFilters.forEach(filter => {
+    filter.x.reset();
+    filter.y.reset();
+  });
+}
+
+function smoothLandmarks(raw, vw, vh, t) {
+  return raw.map((point, index) => ({
+    x: lmFilters[index].x.filter(point.x * vw, t) / vw,
+    y: lmFilters[index].y.filter(point.y * vh, t) / vh
+  }));
+}
+
+// =============================================================
+// RANGKA TANGAN
+// =============================================================
+
+const DOT_COLORS = {
+  line: '#60a5fa',
+  joint: '#ffffff',
+  jointEdge: '#3b82f6',
+  tipEdge: '#ffffff',
+  open: '#f97316',
+  near: '#fbbf24',
+  pinch: '#10b981',
+  shadow: 'rgba(15, 23, 42, 0.35)'
+};
+
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [5, 9], [9, 10], [10, 11], [11, 12],
+  [9, 13], [13, 14], [14, 15], [15, 16],
+  [13, 17], [17, 18], [18, 19], [19, 20],
+  [0, 17]
+];
+
+const FINGER_TIPS = [4, 8, 12, 16, 20];
+
+const handCanvas = document.createElement('canvas');
+
+handCanvas.style.cssText =
+  'position:fixed;left:0;top:0;pointer-events:none;' +
+  'z-index:2147483000;display:none;';
+
+document.body.appendChild(handCanvas);
+
+const handCtx = handCanvas.getContext('2d');
+
+const camCanvas = document.createElement('canvas');
+
+camCanvas.style.cssText =
+  'position:fixed;pointer-events:none;' +
+  'z-index:2147483001;display:none;';
+
+document.body.appendChild(camCanvas);
+
+const camCtx = camCanvas.getContext('2d');
+
+function hideMarkers() {
+  handCanvas.style.display = 'none';
+  camCanvas.style.display = 'none';
+}
+
+function paintHand(ctx, pt, state, scale) {
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = DOT_COLORS.shadow;
+  ctx.shadowBlur = 6 * scale;
+
+  ctx.lineWidth = 4 * scale;
+  ctx.strokeStyle = DOT_COLORS.line;
+  ctx.beginPath();
+
+  HAND_CONNECTIONS.forEach(([a, b]) => {
+    const p = pt(a);
+    const q = pt(b);
+
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(q.x, q.y);
+  });
+
+  ctx.stroke();
+
+  if (state !== 'open') {
+    const thumb = pt(4);
+    const index = pt(8);
+
+    ctx.lineWidth = 5 * scale;
+    ctx.strokeStyle =
+      state === 'pinch'
+        ? DOT_COLORS.pinch
+        : DOT_COLORS.near;
+
+    ctx.beginPath();
+    ctx.moveTo(thumb.x, thumb.y);
+    ctx.lineTo(index.x, index.y);
+    ctx.stroke();
+  }
+
+  for (let id = 0; id < 21; id++) {
+    const point = pt(id);
+    const isTip = FINGER_TIPS.includes(id);
+
+    let fill = DOT_COLORS.joint;
+
+    if (id === 4 || id === 8) {
+      if (state === 'pinch') {
+        fill = DOT_COLORS.pinch;
+      } else if (state === 'near') {
+        fill = DOT_COLORS.near;
+      } else {
+        fill = DOT_COLORS.open;
+      }
+    }
+
+    ctx.beginPath();
+    ctx.arc(
+      point.x,
+      point.y,
+      (isTip ? 13 : 7) * scale,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    ctx.lineWidth = (isTip ? 3 : 2) * scale;
+    ctx.strokeStyle =
+      isTip
+        ? DOT_COLORS.tipEdge
+        : DOT_COLORS.jointEdge;
+
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+}
+
+function drawMarkers(landmarks, toScreen, state) {
+  const dpr = window.devicePixelRatio || 1;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  if (
+    handCanvas.width !== Math.round(width * dpr) ||
+    handCanvas.height !== Math.round(height * dpr)
+  ) {
+    handCanvas.width = Math.round(width * dpr);
+    handCanvas.height = Math.round(height * dpr);
+
+    handCanvas.style.width = `${width}px`;
+    handCanvas.style.height = `${height}px`;
+  }
+
+  handCanvas.style.display = 'block';
+
+  handCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  handCtx.clearRect(0, 0, width, height);
+
+  paintHand(
+    handCtx,
+    id => toScreen(landmarks[id]),
+    state,
+    1
+  );
+
+  const rect = videoElement.getBoundingClientRect();
+
+  if (!rect.width || !rect.height) return;
+
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+
+  if (camCanvas.width !== w || camCanvas.height !== h) {
+    camCanvas.width = w;
+    camCanvas.height = h;
+  }
+
+  camCanvas.style.display = 'block';
+  camCanvas.style.left = `${rect.left}px`;
+  camCanvas.style.top = `${rect.top}px`;
+  camCanvas.style.width = `${w}px`;
+  camCanvas.style.height = `${h}px`;
+
+  const vw = videoElement.videoWidth || 4;
+  const vh = videoElement.videoHeight || 3;
+
+  const scale = Math.max(w / vw, h / vh);
+  const dw = vw * scale;
+  const dh = vh * scale;
+
+  const ox = (w - dw) / 2;
+  const oy = (h - dh) / 2;
+
+  camCtx.clearRect(0, 0, w, h);
+
+  paintHand(
+    camCtx,
+    id => ({
+      x: ox + (1 - landmarks[id].x) * dw,
+      y: oy + landmarks[id].y * dh
+    }),
+    state,
+    0.4
+  );
+}
+
+// =============================================================
+// KURSOR, DWELL CLICK, DAN GESTUR CUBIT
+// =============================================================
+
+function setCursorProgress(progress) {
+  const px = Math.max(0, Math.min(1, progress)) * 10;
+
+  virtualCursorEl.style.boxShadow =
+    px > 0
+      ? `0 0 0 ${px}px rgba(249,115,22,0.35)`
+      : '';
+}
+
+function resetDwell() {
+  if (hoverEl) {
+    hoverEl.classList.remove('cursor-hover');
+  }
+
+  hoverEl = null;
+  dwellStart = 0;
+
+  setCursorProgress(0);
+}
+
+function findInteractiveNear(x, y) {
+  const radius = CFG.hitRadius;
+
+  const offsets = [
+    [0, 0],
+    [radius, 0],
+    [-radius, 0],
+    [0, radius],
+    [0, -radius]
+  ];
+
+  for (const [dx, dy] of offsets) {
+    const el = document.elementFromPoint(x + dx, y + dy);
+
+    const hit = el
+      ? el.closest('.interactive-elem, .interactive-cancel')
+      : null;
+
+    if (hit) return hit;
+  }
+
+  return null;
+}
+
+function findWordNear(x, y) {
+  const padding = CFG.grabPadding;
+
+  let best = null;
+  let bestDistance = Infinity;
+
+  document.querySelectorAll('.interactive-word').forEach(el => {
+    const rect = el.getBoundingClientRect();
+
+    if (
+      x >= rect.left - padding &&
+      x <= rect.right + padding &&
+      y >= rect.top - padding &&
+      y <= rect.bottom + padding
+    ) {
+      const distance = Math.hypot(
+        x - (rect.left + rect.width / 2),
+        y - (rect.top + rect.height / 2)
+      );
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = el;
+      }
+    }
+  });
+
+  return best;
+}
+
+function isInsideDropZone(x, y) {
+  const rect = dropZoneEl.getBoundingClientRect();
+  const padding = CFG.dropPadding;
+
+  return (
+    x >= rect.left - padding &&
+    x <= rect.right + padding &&
+    y >= rect.top - padding &&
+    y <= rect.bottom + padding
+  );
+}
+
+function updateDwell(x, y, now) {
+  if (dwellLock) {
+    const distance = Math.hypot(
+      x - dwellLock.x,
+      y - dwellLock.y
+    );
+
+    if (distance < CFG.lockDistance) {
+      resetDwell();
+      return;
+    }
+
+    dwellLock = null;
+  }
+
+  const target = findInteractiveNear(x, y);
+
+  if (!target) {
+    resetDwell();
+    return;
+  }
+
+  if (target !== hoverEl) {
+    resetDwell();
+
+    hoverEl = target;
+    hoverEl.classList.add('cursor-hover');
+    dwellStart = now;
+
+    return;
+  }
+
+  const progress = (now - dwellStart) / CFG.dwellMs;
+
+  setCursorProgress(progress);
+
+  if (progress >= 1) {
+    const targetClick = hoverEl;
+
+    dwellLock = { x, y };
+
+    resetDwell();
+
+    targetClick.click();
+  }
+}
+
+function dropGrabbedWord(x, y) {
+  if (!grabbedWord) return;
+
+  if (isInsideDropZone(x, y)) {
+    selectedWords.push(grabbedWord);
+  } else {
+    availableWords.push(grabbedWord);
+  }
+
+  grabbedWord = null;
+  floatingWordEl.style.display = 'none';
+
+  renderWordBank();
+  renderDropZone();
+}
+
+// =============================================================
+// MEDIAPIPE HAND LANDMARKS
+// =============================================================
+
+function onResults(results) {
+  const now = performance.now();
+
+  if (
+    !results.multiHandLandmarks ||
+    results.multiHandLandmarks.length === 0
+  ) {
+    lostFrames++;
+
+    if (lostFrames > CFG.lostGraceFrames) {
+      gestureStatusEl.innerText = 'Mencari Tangan...';
+
+      cameraDotEl.className =
+        'w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping';
+
+      virtualCursorEl.style.display = 'none';
+      floatingWordEl.style.display = 'none';
+
+      hideMarkers();
+      resetDwell();
+
+      pinchActive = false;
+      pinchFrames = 0;
+      openFrames = 0;
+
+      smoothX = null;
+      smoothY = null;
+
+      resetLandmarkFilters();
+
+      if (grabbedWord) {
+        availableWords.push(grabbedWord);
+        grabbedWord = null;
+
+        renderWordBank();
+        renderDropZone();
+      }
+    }
+
+    return;
+  }
+
+  lostFrames = 0;
+
+  const vw = videoElement.videoWidth || 4;
+  const vh = videoElement.videoHeight || 3;
+
+  const landmarks = smoothLandmarks(
+    results.multiHandLandmarks[0],
+    vw,
+    vh,
+    now
+  );
+
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const wrist = landmarks[0];
+  const midMcp = landmarks[9];
+
+  const distance = (a, b) =>
+    Math.hypot(
+      (a.x - b.x) * vw,
+      (a.y - b.y) * vh
+    );
+
+  const handSize = Math.max(
+    distance(wrist, midMcp),
+    0.0001
+  );
+
+  const ratio = distance(thumbTip, indexTip) / handSize;
+
+  if (ratio < CFG.pinchOn) {
+    pinchFrames++;
+    openFrames = 0;
+  } else if (ratio > CFG.pinchOff) {
+    openFrames++;
+    pinchFrames = 0;
+  } else {
+    pinchFrames = 0;
+    openFrames = 0;
+  }
+
+  const wasPinching = pinchActive;
+
+  if (
+    !pinchActive &&
+    pinchFrames >= CFG.pinchOnFrames
+  ) {
+    pinchActive = true;
+    pinchStartAt = now;
+  }
+
+  if (
+    pinchActive &&
+    openFrames >= CFG.pinchOffFrames
+  ) {
+    pinchActive = false;
+  }
+
+  const margin = CFG.edgeMargin;
+
+  const toScreen = point => ({
+    x:
+      Math.min(
+        1,
+        Math.max(
+          0,
+          ((1 - point.x) - margin) / (1 - 2 * margin)
+        )
+      ) * window.innerWidth,
+
+    y:
+      Math.min(
+        1,
+        Math.max(
+          0,
+          (point.y - margin) / (1 - 2 * margin)
+        )
+      ) * window.innerHeight
+  });
+
+  const thumbScreen = toScreen(thumbTip);
+  const indexScreen = toScreen(indexTip);
+
+  const usePinchPoint =
+    pinchActive || ratio < CFG.pinchOn;
+
+  const targetX = usePinchPoint
+    ? (thumbScreen.x + indexScreen.x) / 2
+    : indexScreen.x;
+
+  const targetY = usePinchPoint
+    ? (thumbScreen.y + indexScreen.y) / 2
+    : indexScreen.y;
+
+  if (smoothX === null) {
+    smoothX = targetX;
+    smoothY = targetY;
+  } else {
+    smoothX += (targetX - smoothX) * CFG.smooth;
+    smoothY += (targetY - smoothY) * CFG.smooth;
+  }
+
+  const screenX = smoothX;
+  const screenY = smoothY;
+
+  if (pinchActive && openFrames === 1) {
+    releasePos = { x: screenX, y: screenY };
+  }
+
+  if (pinchActive && openFrames === 0) {
+    releasePos = null;
+  }
+
+  const state = pinchActive
+    ? 'pinch'
+    : (ratio < CFG.pinchOff ? 'near' : 'open');
+
+  cameraDotEl.className =
+    'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
+
+  gestureStatusEl.innerText = pinchActive
+    ? 'Mencubit 🤏'
+    : (state === 'near' ? 'Hampir cubit...' : 'Telunjuk Aktif 👆');
+
+  virtualCursorEl.style.display = 'flex';
+  virtualCursorEl.style.left = `${screenX}px`;
+  virtualCursorEl.style.top = `${screenY}px`;
+  virtualCursorEl.innerText = pinchActive ? '🤏' : '👆';
+
+  drawMarkers(landmarks, toScreen, state);
+
+  if (grabbedWord) {
+    floatingWordEl.style.display = 'block';
+    floatingWordEl.style.left = `${screenX}px`;
+    floatingWordEl.style.top = `${screenY - 25}px`;
+    floatingWordEl.innerText = `🤏 ${grabbedWord}`;
+  } else {
+    floatingWordEl.style.display = 'none';
+  }
+
+  // Cubit: mengambil kata.
+  if (
+    pinchActive &&
+    !grabbedWord &&
+    !isImageZoomOpen() &&
+    now - pinchStartAt <= CFG.grabWindowMs
+  ) {
+    const wordTarget = findWordNear(screenX, screenY);
+
+    if (wordTarget) {
+      const word = wordTarget.dataset.word;
+      const index = availableWords.indexOf(word);
+
+      if (index !== -1) {
+        availableWords.splice(index, 1);
+        grabbedWord = word;
+
+        renderWordBank();
+        renderDropZone();
+      }
+    }
+  }
+
+  // Lepas cubit: menjatuhkan kata pada kotak jawaban.
+  if (!pinchActive && wasPinching && grabbedWord) {
+    const position = releasePos || {
+      x: screenX,
+      y: screenY
+    };
+
+    dropGrabbedWord(position.x, position.y);
+
+    releasePos = null;
+  }
+
+  // Telunjuk: klik tombol ketika tidak membawa kata.
+  if (
+    pinchActive ||
+    grabbedWord ||
+    ratio < CFG.pinchOn
+  ) {
+    resetDwell();
+  } else {
+    updateDwell(screenX, screenY, now);
+  }
+}
+
+// =============================================================
+// INISIALISASI KAMERA DAN MEDIAPIPE
+// =============================================================
+
+try {
+  const hands = new Hands({
+    locateFile: file =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: CFG.detectConf,
+    minTrackingConfidence: CFG.trackConf
+  });
+
+  hands.onResults(onResults);
+
+  const camera = new Camera(videoElement, {
+    onFrame: async () => {
+      await hands.send({ image: videoElement });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start().catch(error => {
+    console.warn('Kamera tidak tersedia:', error);
+
+    gestureStatusEl.innerText = 'Mode Sentuh Saja';
+
+    cameraDotEl.className =
+      'w-1.5 h-1.5 rounded-full bg-rose-500';
+  });
+
+} catch (error) {
+  console.warn('Sensor gestur tidak tersedia:', error);
+
+  gestureStatusEl.innerText = 'Mode Sentuh Aktif';
+}
+
+// Tampilkan soal pertama.
+renderQuestion();
+
+// =============================================================
+// SOAL MISI 1 — BANK SOAL ASLI GAME 1
+// Mempertahankan 25 soal asli dan ID yang sudah ada.
+// Metadata kompetensi dashboard ditambahkan untuk integrasi.
+// =============================================================
+//
+// kompetensi              : kode lama untuk backend lokal.
+// kompetensiDashboard     : kode kompetensi di dashboard.
+// jenisKompetensi          : menjelaskan kemampuan yang diuji.
+// Tidak ada soal baru yang ditambahkan.
+//
+// PEMETAAN SEMENTARA:
+// LT-KALIMAT: menyusun kata/frasa/kalimat.
+// LT-KOSAKATA: mengenali atau menyebut nama/kata dari gambar.
+// LT-PAHAM: dua soal konteks visual jam, bukan bacaan teks.
+// LT-LANCAR: belum tersedia soal yang mengukur kelancaran
+// membaca lisan secara langsung.
+//
+// ID SOAL ASLI TIDAK DIUBAH.
+// =============================================================
+
+const questions = [
+  {
+    id: 'LIT-SPO-01',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 1,
+    gambar: 'gambar/sayuribu.jpg',
+    instruksi: '"Apa yang sedang dilakukan Ibu?"',
+    correctOrder: ['Ibu', 'membeli', 'sayur'],
+    words: ['sayur', 'Ibu', 'membeli', 'bermain', 'kemarin'],
+    errorPatterns: {
+      'sayur_membeli_Ibu': 'SPO_TERBALIK',
+      'membeli_Ibu_sayur': 'PREDIKAT_AWAL'
+    }
+  },
+  {
+    id: 'LIT-SPO-02',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 1,
+    gambar: 'gambar/rakabaca.jpg',
+    instruksi: '"Apa yang sedang dilakukan Raka?"',
+    correctOrder: ['Raka', 'membaca', 'buku'],
+    words: ['buku', 'Raka', 'membaca', 'menulis', 'melukis', 'handphone'],
+    errorPatterns: {
+      'buku_membaca_Raka': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-03',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 1,
+    gambar: 'gambar/budibola.jpg',
+    instruksi: '"Apa yang sedang dilakukan Budi?"',
+    correctOrder: ['Budi', 'bermain', 'bola', 'di', 'lapangan'],
+    words: ['bola', 'Budi', 'bermain', 'menulis', 'di', 'lapangan', 'memakan', 'bakso'],
+    errorPatterns: {
+      'lapangan_di_bola_bermain_Budi': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-04',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 1,
+    gambar: 'gambar/sitibunga.jpg',
+    instruksi: '"Apa yang sedang dilakukan Siti?"',
+    correctOrder: ['Siti', 'menyiram', 'bunga'],
+    words: ['bunga', 'Siti', 'meletakkan', 'mangga', 'menanam', 'menyiram'],
+    errorPatterns: {
+      'bunga_menyiram_Siti': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-05',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 1,
+    gambar: 'gambar/pandabambu.jpg',
+    instruksi: '"Apa yang sedang dilakukan Panda?"',
+    correctOrder: ['Panda', 'memakan', 'bambu'],
+    words: ['bambu', 'Panda', 'memakan', 'meminum', 'padi', 'pisang'],
+    errorPatterns: {
+      'bambu_memakan_Panda': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-06',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 2,
+    gambar: 'gambar/bersepeda.jpg',
+    instruksi: '"Apa yang sedang dilakukan Refan?"',
+    correctOrder: ['Refan', 'sedang', 'bersepeda'],
+    words: ['bersepeda', 'Refan', 'sedang', 'mendorong', 'menarik', 'berlari'],
+    errorPatterns: {
+      'bersepeda_sedang_Refan': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-07',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 2,
+    gambar: 'gambar/musik.jpg',
+    instruksi: '"Kegiatan apa yang sedang dilakukan Andi?"',
+    correctOrder: ['Andi', 'sedang', 'mendengarkan', 'musik'],
+    words: ['mendengarkan', 'menggambar', 'menyanyi', 'gitar', 'musik', 'Andi', 'sedang'],
+    errorPatterns: {
+      'mendengarkan_musik_sedang_Andi': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-08',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KOSAKATA',
+    jenisKompetensi: 'kosakata_deskriptif_bergambar',
+    level: 2,
+    gambar: 'gambar/mainanmerah.jpg',
+    instruksi: '"Apa warna mobil mainan yang sedang dipegang Bima?"',
+    correctOrder: ['berwarna', 'merah'],
+    jawabanLain: [
+      ['merah'],
+      ['mobil', 'berwarna', 'merah']
+    ],
+    words: ['cokelat', 'mobil', 'berwarna', 'Bima', 'sedang', 'mengendarai', 'merah', 'biru', 'hijau'],
+    errorPatterns: {
+      'merah_berwarna': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-09',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-PAHAM',
+    jenisKompetensi: 'pemahaman_konteks_visual_bukan_bacaan_teks',
+    level: 2,
+    gambar: 'gambar/jamtujuh.jpg',
+    instruksi: '"Pada pukul berapa Ahmad bangun tidur?"',
+    correctOrder: ['pukul', 'tujuh'],
+    jawabanLain: [
+      ['pada', 'pukul', 'tujuh']
+    ],
+    words: ['delapan', 'pukul', 'tidur', 'enam', 'tujuh', 'setengah', 'pada'],
+    errorPatterns: {
+      'tujuh_pukul': 'SPO_TERBALIK',
+      'tujuh_pukul_pada': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-10',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-PAHAM',
+    jenisKompetensi: 'pemahaman_konteks_visual_bukan_bacaan_teks',
+    level: 2,
+    gambar: 'gambar/jamduabelas.jpg',
+    instruksi: '"Pada pukul berapa Rendi memakan MBG?"',
+    correctOrder: ['pukul', 'dua belas'],
+    jawabanLain: [
+      ['pada', 'pukul', 'dua belas']
+    ],
+    words: ['dua', 'pukul', 'setengah', 'tujuh', 'satu', 'dua belas', 'pada'],
+    errorPatterns: {
+      'dua belas_pukul': 'SPO_TERBALIK',
+      'dua belas_pukul_pada': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-11',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 3,
+    gambar: 'gambar/otwsekolah.jpg',
+    instruksi: '"Susun kalimat yang tepat sesuai dengan kondisi gambar disamping!"',
+    correctOrder: ['Tomi', 'berangkat', 'ke', 'sekolah'],
+    jawabanLain: [
+      ['berangkat', 'ke', 'sekolah']
+    ],
+    words: ['menaiki', 'sepeda', 'Tomi', 'sekolah', 'ke', 'pada', 'berangkat'],
+    errorPatterns: {
+      'Tomi_sekolah_ke_berangkat': 'SPO_TERBALIK',
+      'sekolah_ke_berangkat': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-12',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 3,
+    gambar: 'gambar/sampah.jpg',
+    instruksi: '"Kegiatan terpuji apa yang sedang dilakukan Doni?"',
+    correctOrder: ['Doni', 'membuang', 'sampah', 'pada', 'tempatnya'],
+    jawabanLain: [
+      ['membuang', 'sampah', 'pada', 'tempatnya']
+    ],
+    words: ['tempatnya', 'membuang', 'sembarangan', 'terserah', 'Doni', 'sampah', 'pada', 'sungai', 'jalan'],
+    errorPatterns: {
+      'tempatnya_pada_sampah_membuang_Doni': 'SPO_TERBALIK',
+      'tempatnya_pada_sampah_membuang': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-13',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 3,
+    gambar: 'gambar/belajarmalam.jpg',
+    instruksi: '"Kegiatan terpuji apa yang sedang dilakukan Pandu?"',
+    correctOrder: ['Pandu', 'sedang', 'belajar', 'untuk', 'ujian', 'besok'],
+    jawabanLain: [
+      ['sedang', 'belajar', 'untuk', 'ujian', 'besok'],
+      ['belajar', 'untuk', 'ujian', 'besok']
+    ],
+    words: ['Pandu', 'ujian', 'bermain', 'besok', 'memakan', 'untuk', 'belajar', 'sedang', 'malas'],
+    errorPatterns: {
+      'besok_ujian_untuk_belajar_sedang_Pandu': 'SPO_TERBALIK',
+      'besok_ujian_untuk_belajar_sedang': 'SPO_TERBALIK',
+      'besok_ujian_untuk_belajar': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-14',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KOSAKATA',
+    jenisKompetensi: 'identifikasi_kategori_nama_bergambar',
+    level: 3,
+    gambar: 'gambar/hewan1.jpg',
+    instruksi: '"Ada hewan apa saja yang ada digambar samping?"',
+    urutanBebas: true,
+    correctOrder: ['kucing', 'anjing', 'ikan', 'ular', 'burung', 'kelinci'],
+    words: ['ular', 'gajah', 'kelinci', 'harimau', 'kucing', 'katak',
+            'burung', 'sapi', 'ikan', 'anjing', 'kuda'],
+    errorPatterns: {}
+  },
+  {
+    id: 'LIT-SPO-15',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KOSAKATA',
+    jenisKompetensi: 'identifikasi_kategori_nama_bergambar',
+    level: 3,
+    gambar: 'gambar/hewan2.jpg',
+    instruksi: '"Ada hewan apa saja yang ada digambar samping?"',
+    urutanBebas: true,
+    correctOrder: ['jerapah', 'kucing', 'gajah', 'burung', 'monyet', 'landak', 'beruang', 'kura-kura', 'rubah', 'kelinci'],
+    words: ['ular', 'gajah', 'kelinci', 'harimau', 'kucing', 'katak',
+            'burung', 'sapi', 'ikan', 'anjing', 'kuda', 'jerapah', 'monyet', 'landak', 'beruang', 'kura-kura', 'rubah'],
+    errorPatterns: {}
+  },
+  {
+    id: 'LIT-SPO-16',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 4,
+    gambar: 'gambar/melukis1.jpg',
+    instruksi: '"Susun kata dibawah ini agar menjadi satu kalimat yang sesuai dengan gambar disamping!"',
+    correctOrder: ['Aziz', 'sedang', 'melukis', 'pemandangan', 'gunung', 'di', 'siang', 'hari'],
+    jawabanLain: [
+      ['Aziz', 'sedang', 'melukis', 'pemandangan', 'gunung']
+    ],
+    words: ['Aziz', 'mewarnai', 'gunung', 'di', 'hari', 'siang', 'menggambar', 'malam', 'pemandangan', 'melukis', 'sedang'],
+    errorPatterns: {
+      'hari_siang_di_gunung_pemandangan_melukis_sedang_Aziz': 'SPO_TERBALIK',
+      'gunung_pemandangan_melukis_sedang_Aziz': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-17',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 4,
+    gambar: 'gambar/mancing.jpg',
+    instruksi: '"Susun kata dibawah ini agar menjadi satu kalimat yang sesuai dengan gambar disamping!"',
+    correctOrder: ['Umpan', 'pancing', 'yang', 'digunakan', 'oleh', 'Abdul', 'dimakan', 'ikan'],
+    jawabanLain: [
+      ['Umpan', 'yang', 'digunakan', 'oleh', 'Abdul', 'dimakan', 'ikan'],
+      ['Umpan', 'yang', 'digunakan', 'Abdul', 'dimakan', 'ikan']
+    ],
+    words: ['ditangkap', 'ikan', 'Abdul', 'oleh', 'burung', 'pancing', 'dimakan', 'digunakan', 'Umpan', 'yang', 'pohon'],
+    errorPatterns: {
+      'ikan_dimakan_Abdul_oleh_digunakan_yang_pancing_Umpan': 'SPO_TERBALIK',
+      'ikan_dimakan_Abdul_oleh_digunakan_yang_Umpan': 'SPO_TERBALIK',
+      'ikan_dimakan_Abdul_digunakan_yang_Umpan': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-18',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 4,
+    gambar: 'gambar/memupuk.jpg',
+    instruksi: '"Susun kata dibawah ini agar menjadi satu kalimat yang sesuai dengan gambar disamping!"',
+    correctOrder: ['Anton', 'dan', 'Bela', 'sedang', 'menanam', 'tanaman'],
+    jawabanLain: [
+      ['Anton', 'dan', 'Bela', 'menanam', 'tanaman']
+    ],
+    words: ['Bela', 'dan', 'ke', 'memberikan', 'air', 'Anton', 'tanaman', 'Anton', 'sedang', 'menanam'],
+    errorPatterns: {
+      'tanaman_menanam_sedang_Bela_dan_Anton': 'SPO_TERBALIK',
+      'tanaman_menanam_Bela_dan_Anton': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-19',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KOSAKATA',
+    jenisKompetensi: 'identifikasi_kategori_nama_bergambar',
+    level: 4,
+    gambar: 'gambar/buah.jpg',
+    instruksi: '"Ada buah apa saja yang ada digambar samping?"',
+    urutanBebas: true,
+    correctOrder: ['apel', 'pisang', 'jeruk', 'anggur', 'stroberi'],
+    words: ['apel', 'durian', 'jeruk', 'mangga', 'pisang', 'rambutan',
+            'stroberi', 'nanas', 'anggur', 'semangka', 'jambu', 'bluberi'],
+    errorPatterns: {}
+  },
+  {
+    id: 'LIT-SPO-20',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KOSAKATA',
+    jenisKompetensi: 'identifikasi_kategori_nama_bergambar',
+    level: 4,
+    gambar: 'gambar/sayurfix.jpg',
+    instruksi: '"Ada sayur apa saja yang ada digambar samping?"',
+    urutanBebas: true,
+    correctOrder: ['wortel', 'brokoli', 'tomat', 'sawi', 'jagung'],
+    words: ['wortel', 'cabai', 'bawang merah', 'alpukat', 'tomat', 'labu', 'jagung', 'singkong', 'sawi', 'bawang putih', 'timun', 'brokoli'],
+    errorPatterns: {}
+  },
+  {
+    id: 'LIT-SPO-21',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 5,
+    gambar: 'gambar/upacara.jpg',
+    instruksi: '"Kegiatan apa yang sedang dilakukan para siswa di gambar samping?"',
+    correctOrder: ['Para', 'siswa', 'sedang', 'mengikuti', 'upacara', 'bendera'],
+    jawabanLain: [
+      ['Para', 'siswa', 'mengikuti', 'upacara', 'bendera'],
+      ['Para', 'siswa', 'sedang', 'mengikuti', 'upacara'],
+      ['Para', 'siswa', 'mengikuti', 'upacara']
+    ],
+    words: ['mengikuti', 'pramuka', 'siswa', 'memakan', 'bendera', 'sedang', 'Para', 'yang', 'dihukum', 'upacara'],
+    errorPatterns: {
+      'bendera_upacara_mengikuti_sedang_siswa_Para': 'SPO_TERBALIK',
+      'bendera_upacara_mengikuti_siswa_Para': 'SPO_TERBALIK',
+      'upacara_mengikuti_sedang_siswa_Para': 'SPO_TERBALIK',
+      'upacara_mengikuti_siswa_Para': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-22',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 5,
+    gambar: 'gambar/hutindo.jpg',
+    instruksi: '"Buatlah kalimat yang sesuai dengan gambar disamping!"',
+    correctOrder: ['perayaan', 'hari', 'ulang', 'tahun', 'Indonesia', 'berlangsung', 'meriah'],
+    jawabanLain: [
+      ['perayaan', 'hari', 'ulang', 'tahun', 'Indonesia', 'meriah'],
+      ['anak-anak', 'sedang', 'merayakan', 'hari', 'ulang', 'tahun', 'Indonesia'],
+      ['anak-anak', 'sedang', 'mengikuti', 'perayaan', 'hari', 'ulang', 'tahun', 'Indonesia'],
+      ['anak-anak', 'mengikuti', 'perayaan', 'hari', 'ulang', 'tahun', 'Indonesia']
+    ],
+    words: ['perayaan', 'anak-anak', 'hari', 'sedang', 'meriah', 'ulang', 'tahun', 'Indonesia', 'berlangsung', 'mengikuti'],
+    errorPatterns: {
+      'meriah_berlangsung_Indonesia_tahun_ulang_hari_perayaan': 'SPO_TERBALIK',
+      'meriah_Indonesia_tahun_ulang_hari_perayaan': 'SPO_TERBALIK',
+      'Indonesia_tahun_ulang_hari_merayakan_sedang_anak-anak': 'SPO_TERBALIK',
+      'Indonesia_tahun_ulang_hari_perayaan_mengikuti_sedang_anak-anak': 'SPO_TERBALIK',
+      'Indonesia_tahun_ulang_hari_perayaan_mengikuti_anak-anak': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-23',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KOSAKATA',
+    jenisKompetensi: 'identifikasi_kategori_nama_bergambar',
+    level: 5,
+    gambar: 'gambar/petaindo.jpg',
+    instruksi: '"Sebutkan nama pulau besar di Indonesia!"',
+    urutanBebas: true,
+    correctOrder: ['Jawa', 'Sumatra', 'Kalimantan', 'Sulawesi', 'Papua'],
+    words: ['Jawa', 'Sumatra', 'Kalimantan', 'Sulawesi', 'Papua', 'Bali', 'Nusa Tenggara', 'Miangas'],
+    errorPatterns: {}
+  },
+  {
+    id: 'LIT-SPO-24',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 5,
+    gambar: 'gambar/piketkelas.jpg',
+    instruksi: '"Sikap apa yang ditunjukkan para siswa saat bekerja bersama membersihkan kelas?"',
+    correctOrder: ['gotong', 'royong', 'membuat', 'pekerjaan', 'berat', 'menjadi', 'lebih', 'ringan'],
+    words: ['pekerjaan', 'lebih', 'ringan', 'gotong', 'royong', 'membuat', 'menjadi', 'berat'],
+    errorPatterns: {
+      'ringan_lebih_menjadi_berat_pekerjaan_membuat_royong_gotong': 'SPO_TERBALIK'
+    }
+  },
+  {
+    id: 'LIT-SPO-25',
+    kompetensi: 'menyusun_kalimat',
+    kompetensiDashboard: 'LT-KALIMAT',
+    jenisKompetensi: 'susun_kalimat',
+    level: 5,
+    gambar: 'gambar/jatoh.jpg',
+    instruksi: '"Sikap terpuji apa yang ditunjukkan anak berbaju biru saat temannya jatuh"',
+    correctOrder: ['langsung', 'menolong', 'temannya', 'yang', 'sedang', 'jatuh'],
+    words: ['yang', 'temannya', 'langsung', 'menolong', 'sedang', 'jatuh'],
+    errorPatterns: {
+      'jatuh_sedang_jatuh_yang_temannya_menolong_langsung': 'SPO_TERBALIK'
+    }
+  }
+];
+"""
+LENTERA - Backend Flask
+=======================
+Jalankan:
+    pip install flask
+    python app.py
+Lalu buka  http://localhost:5000/level.html   (kamera butuh localhost / https)
+
+Struktur folder:
+    app.py                  <- file ini
+    lentera.db              <- dibuat otomatis (SQLite)
+    misi1lentera/           <- semua file frontend (level.html, misi1.html, laporan.html, dst)
+
+Endpoint:
+    POST /api/misi1/soal        simpan hasil 1 soal   (dipanggil misi1.js saat soal dijawab benar)
+    POST /api/misi1/level       simpan hasil 1 level  (dipanggil misi1.js saat popup hasil muncul)
+    POST /api/pretest           simpan nilai pre-test anak (skala 0-100)
+    GET  /api/laporan           ringkasan semua anak
+    GET  /api/laporan/<anak_id> laporan 1 anak
+    GET  /laporan               halaman laporan (laporan.html)
+"""
+import os
+import sqlite3
+from datetime import datetime, timedelta, timezone
+
+from flask import Flask, g, jsonify, redirect, request, send_from_directory
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, 'misi1lentera')
+DB_PATH = os.path.join(BASE_DIR, 'lentera.db')
+WIB = timezone(timedelta(hours=7))  # tanggal laporan pakai waktu Indonesia Barat
+
+# Frontend disajikan dari root: /level.html, /misi1.html, /gambar/xxx.jpg, dst
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
+
+
+# =============================================================
+#  ATURAN PENILAIAN (final)
+#  Kalau diubah, ubah juga di misi1.js (hitungSkorSoal & tentukanPredikat)
+# =============================================================
+SKOR_PER_PERCOBAAN = [100, 75, 50]  # benar di percobaan ke-1, ke-2, ke-3
+SKOR_MINIMUM = 25                   # percobaan ke-4 atau lebih
+
+
+def hitung_skor_soal(jumlah_salah):
+    """jumlah_salah 0 -> 100, 1 -> 75, 2 -> 50, >=3 -> 25."""
+    if jumlah_salah < len(SKOR_PER_PERCOBAAN):
+        return SKOR_PER_PERCOBAAN[jumlah_salah]
+    return SKOR_MINIMUM
+
+
+def tentukan_predikat(nilai):
+    """Nilai 100 hanya mungkin kalau semua soal benar di percobaan 1 -> 'Sempurna'."""
+    if nilai >= 100:
+        return 'Sempurna'
+    if nilai >= 90:
+        return 'Sangat Baik'
+    if nilai >= 75:
+        return 'Baik'
+    if nilai >= 60:
+        return 'Cukup'
+    return 'Perlu Pendampingan'
+
+
+def rata_rata(daftar):
+    return round(sum(daftar) / len(daftar), 1) if daftar else None
+
+
+# =============================================================
+#  IDENTITAS ANAK
+#  Sekarang anak_id = ssoToken apa adanya. Kalau token berubah tiap login
+#  atau punya mapping ke ID anak/nama, ubah di fungsi ini saja.
+# =============================================================
+def resolve_anak(sso_token):
+    token = str(sso_token or '').strip()
+    return token or None
+
+
+# =============================================================
+#  DATABASE (SQLite)
+# =============================================================
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS soal_hasil (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    anak_id      TEXT    NOT NULL,
+    sesi_id      TEXT    NOT NULL,   -- 1 kali main 1 level = 1 sesi
+    level        INTEGER NOT NULL,
+    soal_id      TEXT    NOT NULL,
+    jumlah_salah INTEGER NOT NULL,
+    skor         INTEGER NOT NULL,
+    waktu_detik  INTEGER NOT NULL,   -- data pendukung, TIDAK ikut nilai
+    tanggal      TEXT    NOT NULL,
+    UNIQUE (anak_id, sesi_id, soal_id)
+);
+CREATE TABLE IF NOT EXISTS level_hasil (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    anak_id        TEXT    NOT NULL,
+    sesi_id        TEXT    NOT NULL,
+    level          INTEGER NOT NULL,
+    nilai          REAL    NOT NULL,
+    predikat       TEXT    NOT NULL,
+    langsung_benar INTEGER NOT NULL,
+    total_soal     INTEGER NOT NULL,
+    main_ke        INTEGER NOT NULL, -- 1 = pertama kali level ini diselesaikan
+    tanggal        TEXT    NOT NULL,
+    UNIQUE (anak_id, sesi_id)
+);
+CREATE TABLE IF NOT EXISTS pretest (
+    anak_id TEXT PRIMARY KEY,
+    nilai   REAL NOT NULL,           -- skala 0-100
+    tanggal TEXT NOT NULL
+);
+"""
+
+
+def get_db():
+    if 'db' not in g:
+        g.db = sqlite3.connect(DB_PATH, timeout=10)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(_exc):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    with sqlite3.connect(DB_PATH) as db:
+        db.executescript(SCHEMA)
+
+
+def sekarang():
+    return datetime.now(WIB).isoformat(timespec='seconds')
+
+
+# =============================================================
+#  HELPER VALIDASI
+# =============================================================
+class BadRequest(Exception):
+    pass
+
+
+@app.errorhandler(BadRequest)
+def handle_bad_request(e):
+    return jsonify(ok=False, error=str(e)), 400
+
+
+def ambil_json():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise BadRequest('Body harus JSON object.')
+    return data
+
+
+def ambil_int(data, kunci, minimum=0):
+    try:
+        nilai = int(data.get(kunci))
+    except (TypeError, ValueError):
+        raise BadRequest(f'"{kunci}" harus angka bulat.')
+    if nilai < minimum:
+        raise BadRequest(f'"{kunci}" minimal {minimum}.')
+    return nilai
+
+
+def ambil_teks(data, kunci):
+    nilai = str(data.get(kunci) or '').strip()
+    if not nilai or len(nilai) > 200:
+        raise BadRequest(f'"{kunci}" wajib diisi (maks 200 karakter).')
+    return nilai
+
+
+def ambil_anak(data):
+    anak_id = resolve_anak(data.get('ssoToken'))
+    if not anak_id:
+        raise BadRequest('"ssoToken" wajib diisi.')
+    return anak_id
+
+
+def simpan_soal(db, anak_id, sesi_id, level, soal_id, jumlah_salah, waktu_detik):
+    """Upsert: kirim ulang soal yang sama di sesi yang sama tidak bikin data dobel."""
+    skor = hitung_skor_soal(jumlah_salah)
+    db.execute(
+        """
+        INSERT INTO soal_hasil (anak_id, sesi_id, level, soal_id, jumlah_salah, skor, waktu_detik, tanggal)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (anak_id, sesi_id, soal_id) DO UPDATE SET
+            jumlah_salah = excluded.jumlah_salah,
+            skor         = excluded.skor,
+            waktu_detik  = excluded.waktu_detik
+        """,
+        (anak_id, sesi_id, level, soal_id, jumlah_salah, skor, waktu_detik, sekarang()),
+    )
+    return skor
+
+
+# =============================================================
+#  ENDPOINT: SIMPAN DATA
+# =============================================================
+@app.post('/api/misi1/soal')
+def api_simpan_soal():
+    """Body: {ssoToken, sesi_id, level, soal_id, jumlah_salah, waktu_detik}"""
+    d = ambil_json()
+    anak_id = ambil_anak(d)
+    db = get_db()
+    skor = simpan_soal(
+        db, anak_id, ambil_teks(d, 'sesi_id'), ambil_int(d, 'level', 1),
+        ambil_teks(d, 'soal_id'), ambil_int(d, 'jumlah_salah'), ambil_int(d, 'waktu_detik'),
+    )
+    db.commit()
+    return jsonify(ok=True, skor=skor)
+
+
+@app.post('/api/misi1/level')
+def api_simpan_level():
+    """
+    Body: {ssoToken, sesi_id, level, total_soal,
+           soal: [{soal_id, jumlah_salah, waktu_detik}, ...]}
+    Nilai dihitung ulang di server dari jumlah_salah (angka dari browser tidak dipercaya).
+    Aman dikirim ulang (idempotent per sesi_id).
+    """
+    d = ambil_json()
+    anak_id = ambil_anak(d)
+    sesi_id = ambil_teks(d, 'sesi_id')
+    level = ambil_int(d, 'level', 1)
+    total_soal = ambil_int(d, 'total_soal', 1)
+    soal = d.get('soal')
+    if not isinstance(soal, list) or len({str(s.get('soal_id')) for s in soal if isinstance(s, dict)}) != total_soal:
+        raise BadRequest('Jumlah data "soal" harus sama dengan total_soal (dan soal_id tidak boleh dobel).')
+
+    db = get_db()
+    skor_list, langsung_benar = [], 0
+    for s in soal:
+        salah = ambil_int(s, 'jumlah_salah')
+        skor_list.append(simpan_soal(db, anak_id, sesi_id, level, ambil_teks(s, 'soal_id'), salah, ambil_int(s, 'waktu_detik')))
+        if salah == 0:
+            langsung_benar += 1
+
+    nilai = rata_rata(skor_list)
+    predikat = tentukan_predikat(nilai)
+
+    sudah = db.execute('SELECT main_ke FROM level_hasil WHERE anak_id = ? AND sesi_id = ?', (anak_id, sesi_id)).fetchone()
+    if sudah:
+        main_ke = sudah['main_ke']
+        db.execute(
+            'UPDATE level_hasil SET nilai=?, predikat=?, langsung_benar=?, total_soal=? WHERE anak_id=? AND sesi_id=?',
+            (nilai, predikat, langsung_benar, total_soal, anak_id, sesi_id),
+        )
+    else:
+        n = db.execute('SELECT COUNT(*) AS n FROM level_hasil WHERE anak_id = ? AND level = ?', (anak_id, level)).fetchone()['n']
+        main_ke = n + 1
+        db.execute(
+            """INSERT INTO level_hasil (anak_id, sesi_id, level, nilai, predikat, langsung_benar, total_soal, main_ke, tanggal)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (anak_id, sesi_id, level, nilai, predikat, langsung_benar, total_soal, main_ke, sekarang()),
+        )
+    db.commit()
+    return jsonify(ok=True, nilai=nilai, predikat=predikat, langsung_benar=langsung_benar,
+                   total_soal=total_soal, main_ke=main_ke, dihitung_di_laporan=(main_ke == 1))
+
+
+@app.post('/api/pretest')
+def api_simpan_pretest():
+    """
+    Body: {ssoToken, nilai}            nilai sudah skala 0-100
+      atau {ssoToken, benar, total}    otomatis diubah ke skala 0-100
+    """
+    d = ambil_json()
+    anak_id = ambil_anak(d)
+    if 'benar' in d and 'total' in d:
+        total = ambil_int(d, 'total', 1)
+        benar = ambil_int(d, 'benar')
+        if benar > total:
+            raise BadRequest('"benar" tidak boleh lebih besar dari "total".')
+        nilai = round(benar / total * 100, 1)
+    else:
+        try:
+            nilai = round(float(d.get('nilai')), 1)
+        except (TypeError, ValueError):
+            raise BadRequest('Isi "nilai" (0-100) atau "benar" + "total".')
+        if not 0 <= nilai <= 100:
+            raise BadRequest('"nilai" harus di antara 0 dan 100.')
+    db = get_db()
+    db.execute(
+        'INSERT INTO pretest (anak_id, nilai, tanggal) VALUES (?, ?, ?) '
+        'ON CONFLICT (anak_id) DO UPDATE SET nilai = excluded.nilai, tanggal = excluded.tanggal',
+        (anak_id, nilai, sekarang()),
+    )
+    db.commit()
+    return jsonify(ok=True, anak_id=anak_id, nilai=nilai)
+
+
+# =============================================================
+#  LAPORAN
+#  Yang dihitung ke nilai = PENYELESAIAN PERTAMA tiap level (main_ke = 1).
+#  "Main Lagi" tetap tersimpan, tapi tidak mengubah nilai laporan,
+#  supaya anak tidak bisa mengulang sampai 100.
+# =============================================================
+def susun_laporan(db, anak_id):
+    pre = db.execute('SELECT nilai FROM pretest WHERE anak_id = ?', (anak_id,)).fetchone()
+    semua = db.execute('SELECT * FROM level_hasil WHERE anak_id = ? ORDER BY level, main_ke', (anak_id,)).fetchall()
+    ada_soal = db.execute('SELECT 1 FROM soal_hasil WHERE anak_id = ? LIMIT 1', (anak_id,)).fetchone()
+    if not pre and not semua and not ada_soal:
+        return None
+
+    pertama = [r for r in semua if r['main_ke'] == 1]
+    ulang = {}
+    for r in semua:
+        if r['main_ke'] > 1:
+            ulang[r['level']] = ulang.get(r['level'], 0) + 1
+
+    nilai_literasi = rata_rata([r['nilai'] for r in pertama])
+    pretest = pre['nilai'] if pre else None
+    perkembangan = round(nilai_literasi - pretest, 1) if (nilai_literasi is not None and pretest is not None) else None
+
+    total_soal = sum(r['total_soal'] for r in pertama)
+    soal_langsung = sum(r['langsung_benar'] for r in pertama)
+
+    per_tanggal = {}
+    for r in sorted(pertama, key=lambda r: r['tanggal']):
+        per_tanggal.setdefault(r['tanggal'][:10], []).append(r['nilai'])
+
+    return {
+        'anak_id': anak_id,
+        'nilai_literasi': nilai_literasi,
+        'predikat': tentukan_predikat(nilai_literasi) if nilai_literasi is not None else None,
+        'pretest': pretest,
+        'perkembangan': perkembangan,
+        'soal_langsung_benar': soal_langsung,
+        'total_soal': total_soal,
+        'persen_langsung_benar': round(soal_langsung / total_soal * 100, 1) if total_soal else None,
+        'level_selesai': [
+            {
+                'level': r['level'], 'nilai': r['nilai'], 'predikat': r['predikat'],
+                'langsung_benar': r['langsung_benar'], 'total_soal': r['total_soal'],
+                'tanggal': r['tanggal'][:10], 'main_ulang': ulang.get(r['level'], 0),
+            }
+            for r in pertama
+        ],
+        'tren': [{'tanggal': t, 'nilai': rata_rata(v)} for t, v in per_tanggal.items()],
+    }
+
+
+@app.get('/api/laporan/<path:anak_id>')
+def api_laporan_anak(anak_id):
+    hasil = susun_laporan(get_db(), anak_id)
+    if hasil is None:
+        return jsonify(ok=False, error='Data anak tidak ditemukan.'), 404
+    return jsonify(ok=True, **hasil)
+
+
+@app.get('/api/laporan')
+def api_laporan_semua():
+    db = get_db()
+    ids = [r['anak_id'] for r in db.execute(
+        'SELECT anak_id FROM level_hasil UNION SELECT anak_id FROM pretest UNION SELECT anak_id FROM soal_hasil ORDER BY anak_id'
+    ).fetchall()]
+    ringkas = []
+    for anak_id in ids:
+        l = susun_laporan(db, anak_id)
+        ringkas.append({k: l[k] for k in ('anak_id', 'nilai_literasi', 'predikat', 'pretest', 'perkembangan')}
+                       | {'jumlah_level': len(l['level_selesai'])})
+    return jsonify(ok=True, anak=ringkas)
+
+
+# =============================================================
+#  HALAMAN
+# =============================================================
+@app.get('/laporan')
+def halaman_laporan():
+    return send_from_directory(FRONTEND_DIR, 'laporan.html')
+
+
+@app.get('/')
+def index():
+    return redirect('/level.html')
+
+
+init_db()
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=True)
