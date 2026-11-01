@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LENTERA - Baca Kalimat</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- CSS bersama (kartu, popup, hasil akhir) + CSS khusus game baca -->
+  <link rel="stylesheet" href="misi1.css" />
+  <link rel="stylesheet" href="baca.css" />
+
+  <!-- MediaPipe Hands & Camera Utils CDN (telunjuk untuk menekan tombol) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col select-none">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+    <div class="flex items-center gap-3">
+      <span class="text-xl">✨</span>
+      <h1 class="font-bold text-lg text-slate-900 tracking-tight">LENTERA</h1>
+      <span class="bg-orange-100 text-orange-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+        Literasi · Baca Kalimat
+      </span>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium text-slate-500">Kalimat <span id="soal-num">1</span>/<span id="soal-total">5</span></span>
+        <div class="w-24 sm:w-28 bg-slate-200 rounded-full h-2 overflow-hidden">
+          <div id="progress-bar" class="bg-orange-500 h-2 rounded-full transition-all duration-300" style="width: 20%"></div>
+        </div>
+      </div>
+
+      <span id="level-badge" class="bg-blue-50 text-blue-600 text-xs font-bold px-2.5 py-1 rounded-lg border border-blue-200">
+        Level 1
+      </span>
+
+      <!-- Poin kalimat yang sedang dibaca: 100, berkurang 5 tiap salah -->
+      <div id="poin-wrap" class="relative bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-lg" title="Poin kalimat ini. Setiap bacaan yang salah mengurangi 5 poin.">
+        ⭐ Poin <span id="poin-val">100</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Area utama -->
+  <main class="max-w-4xl mx-auto w-full p-4 pb-44 flex-1 flex flex-col justify-center gap-4">
+
+    <!-- Kartu kalimat -->
+    <section class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-7 flex flex-col sm:flex-row items-center gap-5 sm:gap-7">
+      <div id="soal-gambar" class="relative bg-slate-100 w-28 h-28 sm:w-32 sm:h-32 rounded-2xl flex items-center justify-center text-6xl shrink-0 border border-slate-200 overflow-hidden" aria-hidden="true">
+        📖
+      </div>
+
+      <div class="flex flex-col gap-3 flex-1 min-w-0 items-center sm:items-start text-center sm:text-left">
+        <p class="text-sm font-medium text-slate-500">Baca kalimat ini dengan suara keras.</p>
+
+        <p id="kalimat" class="kalimat font-extrabold text-slate-800 text-3xl sm:text-4xl" aria-label="Kalimat yang harus dibaca"></p>
+
+        <button id="audio-btn" type="button" class="interactive-elem flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-800 w-fit bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          🔊 <span>Dengarkan contoh</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Panel mikrofon -->
+    <section id="mic-panel" data-mode="siap" class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 sm:gap-7">
+      <button id="mic-btn" type="button" data-mode="siap" class="interactive-elem mic-orb" aria-label="Mulai membaca" aria-pressed="false">
+        <span id="mic-ikon" aria-hidden="true">🎤</span>
+      </button>
+
+      <div class="flex flex-col gap-2 flex-1 min-w-0 w-full items-center sm:items-start text-center sm:text-left">
+        <div class="flex items-center gap-3">
+          <h2 id="mic-judul" class="text-lg font-bold text-slate-800">Tekan mikrofon untuk mulai membaca</h2>
+          <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+        </div>
+
+        <p id="status-line" class="text-sm text-slate-500 min-h-[1.25rem]" role="status" aria-live="polite"></p>
+
+        <div class="w-full rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 min-h-[3.5rem] flex flex-col justify-center">
+          <span class="text-xs text-slate-400">Yang terdengar</span>
+          <p id="terdengar" class="text-base text-slate-700 break-words text-left" aria-live="off">
+            <span class="text-slate-400 italic">Kata yang terdengar akan muncul di sini.</span>
+          </p>
+        </div>
+
+        <!-- Catatan masalah mikrofon (disembunyikan sampai dibutuhkan) -->
+        <div id="catatan" class="hidden w-full rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-left" role="alert">
+          <p id="catatan-judul" class="text-sm font-bold text-rose-700"></p>
+          <p id="catatan-isi" class="text-xs text-rose-700/90 mt-0.5 leading-relaxed"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- POPUP SUKSES -->
+  <div id="success-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden">
+    <div class="bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 rounded-3xl max-w-md w-full p-2 shadow-2xl border-4 border-white">
+      <div class="bg-white rounded-[22px] p-6 text-center flex flex-col items-center gap-3 relative overflow-hidden">
+        <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center text-3xl shadow-inner animate-pulse">
+          🏆
+        </div>
+        <div class="flex flex-col gap-1">
+          <h2 class="text-2xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-rose-600">
+            HEBAT! YEEAY! 🎉
+          </h2>
+          <p class="text-xs font-medium text-slate-600">
+            Bacaanmu tepat! Poin kalimat ini: <b id="success-poin" class="text-orange-600">100</b>
+          </p>
+        </div>
+        <button id="success-next-btn" type="button" class="interactive-elem w-full py-3 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white font-bold text-sm rounded-xl shadow-lg cursor-pointer">
+          Lanjut 🚀
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP SALAH -->
+  <div id="error-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-3">
+      <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl">
+        💡
+      </div>
+      <div class="flex flex-col gap-1">
+        <h3 id="error-judul" class="text-lg font-bold text-slate-900" style="text-wrap: balance">Belum tepat, poinmu berkurang 5</h3>
+        <p id="modal-error-desc" class="text-xs text-slate-600 leading-relaxed"></p>
+      </div>
+      <button id="modal-close-btn" type="button" class="interactive-elem w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl cursor-pointer">
+        Coba lagi 🎤
+      </button>
+    </div>
+  </div>
+
+  <!-- POPUP KELUAR -->
+  <div id="exit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 flex flex-col items-center text-center gap-3">
+      <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-2xl">
+        🚪
+      </div>
+      <div class="flex flex-col gap-1">
+        <h3 class="text-lg font-bold text-slate-900">Keluar dari permainan?</h3>
+        <p class="text-xs text-slate-600 leading-relaxed">
+          Kalimat yang belum selesai akan dibaca dari awal lagi saat kamu kembali.
+        </p>
+      </div>
+      <div class="flex gap-3 w-full">
+        <button id="exit-leave-btn" type="button" class="interactive-elem flex-1 py-2.5 rounded-xl border border-slate-300 bg-white font-semibold text-xs text-slate-600 hover:bg-slate-100 cursor-pointer">
+          Keluar
+        </button>
+        <button id="exit-stay-btn" type="button" class="interactive-elem flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl cursor-pointer">
+          Lanjut membaca
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP HASIL AKHIR LEVEL -->
+  <div id="result-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[999] hidden overflow-hidden">
+    <!-- Confetti (dibuat via JS) -->
+    <div id="confetti-layer" class="absolute inset-0 overflow-hidden pointer-events-none"></div>
+
+    <div class="relative bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 rounded-[2rem] max-w-lg w-full p-2 shadow-2xl border-4 border-white result-card">
+      <div class="bg-white rounded-[1.5rem] px-6 py-5 text-center flex flex-col items-center gap-3 relative overflow-hidden">
+
+        <!-- Hiasan pojok -->
+        <span class="absolute top-3 left-4 text-2xl result-twinkle">✨</span>
+        <span class="absolute top-3 right-4 text-2xl result-twinkle" style="animation-delay:0.5s">✨</span>
+        <span class="absolute bottom-24 left-5 text-xl result-twinkle" style="animation-delay:1s">⭐</span>
+        <span class="absolute bottom-24 right-5 text-xl result-twinkle" style="animation-delay:1.5s">⭐</span>
+
+        <div class="text-6xl result-bounce">🏆</div>
+
+        <div class="flex flex-col gap-0.5">
+          <span id="result-level-label" class="text-[11px] font-bold uppercase tracking-widest text-orange-500">Level 1 Selesai</span>
+          <h2 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 via-rose-600 to-fuchsia-600">
+            LUAR BIASA! 🎉
+          </h2>
+        </div>
+
+        <!-- Bintang -->
+        <div id="result-stars" class="flex items-center gap-2 text-4xl">
+          <span class="result-star" style="animation-delay:0.3s">⭐</span>
+          <span class="result-star text-5xl" style="animation-delay:0.6s">⭐</span>
+          <span class="result-star" style="animation-delay:0.9s">⭐</span>
+        </div>
+
+        <!-- Nilai -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nilai Kamu</span>
+          <div class="result-score-ring w-36 h-36 rounded-full flex items-center justify-center shadow-xl">
+            <div class="w-[7.5rem] h-[7.5rem] bg-white rounded-full flex items-center justify-center">
+              <span id="result-score" class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-orange-500 to-rose-600">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Statistik -->
+        <div class="flex items-center gap-3 w-full justify-center flex-wrap">
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2 flex flex-col items-center">
+            <span id="result-correct" class="text-lg font-extrabold text-emerald-600">5/5</span>
+            <span class="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">Langsung</span>
+          </div>
+          <div class="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2 flex flex-col items-center">
+            <span id="result-salah" class="text-lg font-extrabold text-rose-600">0</span>
+            <span class="text-[10px] font-semibold text-rose-700 uppercase tracking-wide">Salah baca</span>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex flex-col items-center">
+            <span id="result-predikat" class="text-lg font-extrabold text-amber-600">Sempurna</span>
+            <span class="text-[10px] font-semibold text-amber-700 uppercase tracking-wide">Predikat</span>
+          </div>
+        </div>
+
+        <p id="result-pesan" class="text-xs font-medium text-slate-600 px-6" style="text-wrap: balance">
+          Semua kalimat kamu baca dengan tepat. Kamu hebat sekali! 🌟
+        </p>
+
+        <div class="flex gap-3 w-full">
+          <button id="result-retry-btn" type="button" class="interactive-elem flex-1 py-3 rounded-xl border border-slate-300 bg-white font-semibold text-sm text-slate-600 hover:bg-slate-100 transition cursor-pointer">
+            🔁 Main Lagi
+          </button>
+          <button id="result-level-btn" type="button" class="interactive-elem flex-1 py-3 bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white font-bold text-sm rounded-xl shadow-lg cursor-pointer">
+            Pilih Level 🚀
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Webcam & Virtual Cursor -->
+  <div class="fixed bottom-3 right-3 w-36 flex flex-col items-end gap-2 z-50">
+    <button id="back-btn" type="button" class="interactive-elem px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs shadow-md transition cursor-pointer">
+      ← Kembali
+    </button>
+
+    <div class="w-full bg-slate-900 border-2 border-slate-700 rounded-xl overflow-hidden shadow-2xl p-1.5 flex flex-col items-center gap-1">
+      <video id="webcam" class="w-full h-20 bg-black rounded-lg transform -scale-x-100 object-cover" autoplay playsinline muted></video>
+      <div class="flex items-center gap-1 text-[9px] text-emerald-400 font-medium w-full justify-center">
+        <span id="camera-dot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="gesture-status">Mencari Tangan...</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="virtual-cursor" class="fixed w-6 h-6 rounded-full bg-orange-500/80 border-2 border-white shadow-xl pointer-events-none z-[9999] hidden transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-[9px] text-white font-bold">
+    👆
+  </div>
+
+  <!-- JavaScript -->
+  <!-- Bank kalimat (edit kalimat HANYA di file ini) -->
+  <script src="soal-baca.js"></script>
+  <!-- Logika pencocokan bacaan & poin -->
+  <script src="baca-logika.js"></script>
+  <script src="baca.js"></script>
+</body>
+</html>
