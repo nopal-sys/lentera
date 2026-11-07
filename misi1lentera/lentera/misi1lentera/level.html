@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LENTERA - Pilih Level</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Custom CSS (dipakai bareng halaman soal, ada style .cursor-hover) -->
+  <link rel="stylesheet" href="misi1.css" />
+  
+  <!-- MediaPipe Hands & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 h-screen overflow-hidden flex flex-col select-none">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <span class="text-xl">✨</span>
+      <h1 class="font-bold text-lg text-slate-900 tracking-tight">LENTERA</h1>
+      <span class="bg-orange-100 text-orange-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+        Literasi · Menyusun Kalimat
+      </span>
+    </div>
+  </header>
+
+  <!-- Pilih Level -->
+  <main class="max-w-6xl mx-auto w-full p-6 pb-44 flex-1 flex flex-col items-center justify-center gap-6">
+    <div class="text-center flex flex-col gap-1">
+      <h2 class="text-3xl font-extrabold text-slate-900">Pilih Level</h2>
+      <p class="text-sm text-slate-500">Arahkan telunjuk ke level yang ingin kamu mainkan, lalu tahan sebentar.</p>
+    </div>
+
+    <!-- Kartu level dirender via level.js -->
+    <div id="level-grid" class="grid grid-cols-5 gap-4 w-full"></div>
+  </main>
+
+  <!-- Video Webcam & Virtual Cursor -->
+  <div class="fixed bottom-3 right-3 w-36 bg-slate-900 border-2 border-slate-700 rounded-xl overflow-hidden shadow-2xl p-1.5 flex flex-col items-center gap-1 z-50">
+    <video id="webcam" class="w-full h-20 bg-black rounded-lg transform -scale-x-100 object-cover" autoplay playsinline muted></video>
+    <div class="flex items-center gap-1 text-[9px] text-emerald-400 font-medium w-full justify-center">
+      <span id="camera-dot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+      <span id="gesture-status">Mencari Tangan...</span>
+    </div>
+  </div>
+
+  <div id="virtual-cursor" class="fixed w-6 h-6 rounded-full bg-orange-500/80 border-2 border-white shadow-xl pointer-events-none z-[9999] hidden transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-[9px] text-white font-bold">
+    👆
+  </div>
+
+  <!-- Data soal dipakai untuk menghitung jumlah soal tiap level -->
+  <script src="soal-misi1.js"></script>
+  <script src="level.js"></script>
+</body>
+</html>

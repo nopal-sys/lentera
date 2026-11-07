@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LENTERA - Laporan Literasi</title>
+  <!-- Tailwind CSS CDN (sama seperti halaman lain) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-xl">✨</span>
+      <h1 class="font-bold text-lg text-slate-900 tracking-tight">LENTERA</h1>
+      <span class="bg-orange-100 text-orange-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+        Laporan Literasi
+      </span>
+    </div>
+    <a id="back-link" href="laporan.html" class="hidden text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+      ← Semua anak
+    </a>
+  </header>
+
+  <!-- Isi laporan dirender oleh laporan.js -->
+  <main id="laporan-root" class="max-w-5xl mx-auto w-full p-6 flex flex-col gap-5">
+    <p class="text-sm text-slate-400">Memuat data...</p>
+  </main>
+
+  <script src="laporan.js"></script>
+</body>
+</html>
